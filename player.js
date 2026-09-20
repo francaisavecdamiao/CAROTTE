@@ -103,8 +103,7 @@ function telaPin(){
   const pinUrl = (url.searchParams.get('pin') || '').replace(/\D/g,'').slice(0,6);
   return `
     <div class="home-card">
-      <img src="images/LOGO.png" alt="Carotte" class="brand-logo" onerror="this.style.display='none'">
-      <img src="images/galo.png" alt="" class="mascot-img" onerror="this.style.display='none'">
+      <img src="images/CAROTTELOGO.png" alt="Carotte" class="brand-logo" onerror="this.style.display='none'">
       <h1>carotte</h1>
       <p class="home-sub">Digite o PIN que aparece na tela do apresentador.</p>
       <input id="pinInput" class="pin-input" inputmode="numeric" pattern="[0-9]*"
@@ -115,11 +114,13 @@ function telaPin(){
       ${retomar}
     </div>
     <div class="footer-space"></div>
-    <div class="footer-brand">
-      <img src="images/logo_fad.png" alt="" onerror="this.style.display='none'">
-      <span>quiz ao vivo · escolas, treinamentos e eventos</span>
-    </div>
-    <button class="btn btn-block" onclick="entrarPorPin()">entrar</button>`;
+    <button class="btn btn-block" onclick="entrarPorPin()">entrar</button>
+    <button class="btn-ghost btn" style="margin-top:10px" onclick="irParaHost()">sou professor / apresentador</button>`;
+}
+
+function irParaHost(){
+  playSound('click');
+  location.href = 'host.html';
 }
 
 function focarPin(){
