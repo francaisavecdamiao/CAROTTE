@@ -7,13 +7,13 @@
    ========================================================= */
 
 const firebaseConfig = {
-  apiKey: "COLE_AQUI_SUA_API_KEY",
-  authDomain: "SEU-PROJETO.firebaseapp.com",
-  databaseURL: "https://SEU-PROJETO-default-rtdb.firebaseio.com",
-  projectId: "SEU-PROJETO",
-  storageBucket: "SEU-PROJETO.appspot.com",
-  messagingSenderId: "000000000000",
-  appId: "1:000000000000:web:0000000000000000000000"
+  apiKey: "AIzaSyAPYqLlIcRRHL_YQXAAbcYcvv9p1efRtdk",
+  authDomain: "carotte-c42b0.firebaseapp.com",
+  projectId: "carotte-c42b0",
+  storageBucket: "carotte-c42b0.firebasestorage.app",
+  messagingSenderId: "837486267401",
+  appId: "1:837486267401:web:3136c41f101702a8673cd8",
+  measurementId: "G-T8G4LV3N8M"
 };
 
 /* inicialização (SDK compat carregado por CDN nas páginas) */
