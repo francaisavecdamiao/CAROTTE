@@ -1,0 +1,33 @@
+{
+  "rules": {
+    "games": {
+      "$pin": {
+        ".read": true,
+
+        "meta":       { ".write": true },
+        "perguntas":  { ".write": true },
+        "estado":     { ".write": true },
+        "resultados": { ".write": true },
+
+        "jogadores": {
+          ".write": true,
+          "$id": {
+            ".validate": "!newData.exists() || newData.hasChildren(['apelido','personagem'])",
+            "apelido": { ".validate": "newData.isString() && newData.val().length >= 2 && newData.val().length <= 18" },
+            "pontos":  { ".validate": "newData.isNumber() && newData.val() >= 0" }
+          }
+        },
+
+        "respostas": {
+          ".write": "!newData.exists()",
+          "$indice": {
+            "$jogador": {
+              ".write": "!data.exists()",
+              ".validate": "newData.hasChildren(['opcao','timestamp']) && newData.child('opcao').isNumber() && newData.child('opcao').val() >= 0 && newData.child('opcao').val() <= 3"
+            }
+          }
+        }
+      }
+    }
+  }
+}
