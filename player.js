@@ -277,9 +277,12 @@ async function entrarNoJogo(){
    TELAS DO JOGO
    ========================================================= */
 function telaEspera(){
+  const img = P.personagem
+    ? `<img src="${retratoDe(P.personagem)}" alt="${esc(P.personagem)}" class="mascot-img" style="border-radius:50%;object-fit:cover;border:3px solid var(--amarelo)" onerror="this.onerror=null;this.src=avatarFallback('${jsStr(P.personagem||'')}')">`
+    : `<img src="images/galo.png" alt="" class="mascot-img" onerror="this.style.display='none'">`;
   return `
     <div class="home-card">
-      <img src="images/galo.png" alt="" class="mascot-img" onerror="this.style.display='none'">
+      ${img}
       <h1>aguardando o anfitrião iniciar…</h1>
       <p class="home-sub">Você está no jogo como <strong>${esc(P.apelido)}</strong>.</p>
       <div class="level-preview">
@@ -473,13 +476,13 @@ function ouvirJogo(){
     if(P.fase === 'pergunta'){
       if(faseAnterior !== 'pergunta'){
         P.minhaResposta = null;
-        playSound('question');
+        /* som da pergunta só no host */
       }
       iniciarTick();
     } else {
       pararTick();
     }
-    if(P.fase === 'anuncio' && faseAnterior !== 'anuncio'){ playSound('modo'); }
+    /* som do modo só no host — participante fica em silêncio no anúncio */
     render();
   });
 
@@ -492,7 +495,7 @@ function ouvirJogo(){
       maiorSequencia: j.maiorSequencia || 0, acertos: j.acertos || 0,
       ultimoGanho: j.ultimoGanho || 0, ultimoAcerto: j.ultimoAcerto
     };
-    /* som do resultado: uma vez por pergunta */
+    /* sons de acerto/erro só para o participante, uma vez por pergunta */
     if(P.fase === 'revelacao' && j.ultimoAcerto !== null && j.ultimoAcerto !== undefined && P.somDe !== P.indice){
       P.somDe = P.indice;
       playSound(P.eu.ultimoAcerto === true ? 'ok' : 'falha');
