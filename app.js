@@ -28,6 +28,8 @@ function formatScore(n){
 
 /* ---------------------------------------------------------
    SONS — pasta sounds/, volume 0.85 nos efeitos
+   O som "question" funciona como som de fundo da pergunta:
+   toca uma vez, sozinho, sempre que uma pergunta abre — sem loop.
    --------------------------------------------------------- */
 const SOUND_FILES = {
   click:'sounds/click.mp3',
@@ -41,47 +43,45 @@ const SOUND_FILES = {
   losing:'sounds/losing.mp3',
   win:'sounds/win01.mp3'
 };
+const SOUND_VOLUMES = { question:0.5 };  // mais baixo que os demais efeitos (0.85)
 
-function playSound(name){
-  try{
-    const src = SOUND_FILES[name]; if(!src) return;
-    const a = new Audio(src); a.volume = 0.85; a.play().catch(()=>{});
-  }catch(e){}
-}
-
-/* música de fundo em loop (volume baixo) — só começa após o 1º clique */
-const music = {
-  el:null, muted:false, wanted:false, unlocked:false,
-  init(){
-    try{
-      this.muted = localStorage.getItem('carotte_mute') === '1';
-      this.el = new Audio('sounds/game-backsound.mp3');
-      this.el.loop = true; this.el.volume = 0.25;
-    }catch(e){}
-    const unlock = ()=>{ music.unlocked = true; if(music.wanted) music.start(); };
-    document.addEventListener('click', unlock, { once:true });
-    document.addEventListener('touchstart', unlock, { once:true });
-    document.addEventListener('keydown', unlock, { once:true });
-  },
-  start(){
-    this.wanted = true;
-    if(!this.el || this.muted || !this.unlocked) return;
-    try{ this.el.play().catch(()=>{}); }catch(e){}
-  },
-  stop(){
-    this.wanted = false;
-    try{ if(this.el){ this.el.pause(); this.el.currentTime = 0; } }catch(e){}
-  },
+/* controle global de som — um único botão de mudo cobre todos os efeitos */
+const som = {
+  muted:false,
+  init(){ try{ this.muted = localStorage.getItem('carotte_mute') === '1'; }catch(e){} },
   toggle(){
     this.muted = !this.muted;
     try{ localStorage.setItem('carotte_mute', this.muted ? '1' : '0'); }catch(e){}
-    if(this.muted){ try{ this.el && this.el.pause(); }catch(e){} }
-    else if(this.wanted){ this.start(); }
     return this.muted;
   },
   icon(){ return this.muted ? '🔇' : '🔊'; }
 };
-music.init();
+som.init();
+
+function playSound(name){
+  if(som.muted) return;
+  try{
+    const src = SOUND_FILES[name]; if(!src) return;
+    const a = new Audio(src);
+    a.volume = SOUND_VOLUMES[name] !== undefined ? SOUND_VOLUMES[name] : 0.85;
+    a.play().catch(()=>{});
+  }catch(e){}
+}
+
+/* ---------------------------------------------------------
+   AVATAR DE RESERVA
+   Se a foto do personagem não carregar, mostra um círculo
+   colorido com a inicial do nome, para o lugar nunca ficar vazio.
+   --------------------------------------------------------- */
+function avatarFallback(nome){
+  const letra = (String(nome||'?').trim().charAt(0) || '?').toUpperCase();
+  const cores = ['#F2A7AD','#8EC2C9','#F2A444','#F2B28D','#EF7211'];
+  let hash = 0;
+  for(let i=0;i<String(nome).length;i++) hash = (hash*31 + String(nome).charCodeAt(i)) | 0;
+  const cor = cores[Math.abs(hash) % cores.length];
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="50" fill="${cor}"/><text x="50" y="58" font-family="Nunito, sans-serif" font-size="46" font-weight="800" fill="#ffffff" text-anchor="middle">${letra}</text></svg>`;
+  return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
+}
 
 /* ---------------------------------------------------------
    FORMAS DAS 4 OPÇÕES
