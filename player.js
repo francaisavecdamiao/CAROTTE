@@ -13,6 +13,7 @@ const P = {
   carIndex:0,
   fase:'lobby',       // lobby | anuncio | pergunta | revelacao | ranking | fim
   indice:0,
+  modo:'unica',
   correta:null,
   fimEm:0, inicioEm:0,
   meta:{ titulo:'', mostrarNoAparelho:false },
@@ -79,7 +80,7 @@ function renderTopbar(){
     ${P.resumed ? `<span class="resume-note">progresso retomado de onde você parou</span>` : ''}
     <div class="topbar-row">
       <span class="level-label">${esc(label)}</span>
-      <button class="mute-btn" title="som de fundo" onclick="alternarSom(this)">${music.icon()}</button>
+      <button class="mute-btn" title="som de fundo" onclick="alternarSom(this)">${som.icon()}</button>
       <button class="restart-btn" title="sair do jogo" onclick="sairDoJogo()">&#8634;</button>
       <span class="score-badge">🥕 ${formatScore(P.eu.pontos)}</span>
     </div>
@@ -87,8 +88,7 @@ function renderTopbar(){
 }
 
 function alternarSom(btn){
-  const mudo = music.toggle();
-  btn.innerText = mudo ? '🔇' : '🔊';
+  btn.innerText = som.toggle() ? '🔇' : '🔊';
 }
 
 /* =========================================================
@@ -266,7 +266,6 @@ async function entrarNoJogo(){
     salvar();
     P.erro = ''; P.etapa = 'espera';
     ouvirJogo();
-    music.start();
     render();
   }catch(e){
     P.erro = 'Não foi possível entrar. Verifique a conexão e tente de novo.';
@@ -281,10 +280,10 @@ function telaEspera(){
   return `
     <div class="home-card">
       <img src="images/galo.png" alt="" class="mascot-img" onerror="this.style.display='none'">
-      <h1>aguardando o host iniciar…</h1>
+      <h1>aguardando o anfitrião iniciar…</h1>
       <p class="home-sub">Você está no jogo como <strong>${esc(P.apelido)}</strong>.</p>
       <div class="level-preview">
-        <div class="level-chip"><span class="chip-num">👤</span> ${esc(P.personagem||'')} <span class="chip-pts">${P.jogadores} no lobby</span></div>
+        <div class="level-chip"><span class="chip-num">👤</span> ${esc(P.personagem||'')} <span class="chip-pts">${P.jogadores} na sala</span></div>
       </div>
     </div>
     <div class="footer-space"></div>
@@ -295,7 +294,7 @@ function telaEspera(){
 }
 
 function telaAnuncio(){
-  const modo = P.pergunta && MODOS[P.pergunta.modo] ? P.pergunta.modo : 'unica';
+  const modo = MODOS[P.modo] ? P.modo : 'unica';
   return `
     <div class="home-card">
       <p class="instruction">prepare-se</p>
@@ -310,6 +309,7 @@ function telaAnuncio(){
 function telaPergunta(){
   if(P.minhaResposta !== null) return telaEnviada();
   const mostrar = P.meta.mostrarNoAparelho && P.pergunta;
+  const modo = MODOS[P.modo] ? P.modo : 'unica';
   const rest = Math.max(0, Math.ceil((P.fimEm - serverNow())/1000));
   const botoes = SHAPES.map((s,i)=>`
     <button class="shape-btn ${s.cls}" onclick="responder(${i})">
@@ -318,7 +318,7 @@ function telaPergunta(){
     </button>`).join('');
   return `
     <div class="question-card">
-      <p class="instruction">pergunta ${P.indice+1}${P.total?`/${P.total}`:''} · <span class="timer-num ${rest<=5?'alerta':''}" id="tick">${rest}s</span></p>
+      <p class="instruction">pergunta ${P.indice+1}${P.total?`/${P.total}`:''} · ${esc(MODOS[modo].nome)} · <span class="timer-num ${rest<=5?'alerta':''}" id="tick">${rest}s</span></p>
       ${mostrar ? `<p class="fr-sentence">${esc(P.pergunta.enunciado)}</p>` : `<p class="home-sub">Olhe a pergunta na tela e toque na forma da sua resposta.</p>`}
       <div class="shapes-grid" style="margin-top:12px">${botoes}</div>
     </div>
@@ -465,6 +465,7 @@ function ouvirJogo(){
     P.fimEm = e.fimEm || 0;
     P.correta = (typeof e.correta === 'number') ? e.correta : null;
     P.total = e.total || P.total;
+    P.modo = MODOS[e.modo] ? e.modo : 'unica';
     P.pergunta = e.pergunta || null;   // enunciado + opções (sem o gabarito)
 
     if(P.indice !== indiceAnterior){ P.minhaResposta = null; }
@@ -473,14 +474,12 @@ function ouvirJogo(){
       if(faseAnterior !== 'pergunta'){
         P.minhaResposta = null;
         playSound('question');
-        music.start();
       }
       iniciarTick();
     } else {
       pararTick();
     }
-    if(P.fase === 'anuncio' && faseAnterior !== 'anuncio'){ playSound('modo'); music.start(); }
-    if(P.fase === 'fim'){ music.stop(); }
+    if(P.fase === 'anuncio' && faseAnterior !== 'anuncio'){ playSound('modo'); }
     render();
   });
 
