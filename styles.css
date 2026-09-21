@@ -74,14 +74,34 @@ h1,h2,.level-label,.score-badge,.btn,.chip-num,.chip-pts,.final-score,
 }
 
 /* ---------- HOST: mesma linguagem, tela larga ---------- */
-body.host #page{ max-width:1200px; box-shadow:none; }
-body.host main#content{ padding:24px 28px 20px; gap:20px; }
-body.host .level-label{ font-size:20px; }
-body.host .score-badge{ font-size:20px; padding:6px 16px; }
-body.host .home-card h1{ font-size:34px; }
-body.host .home-sub{ font-size:18px; }
-body.host .btn{ font-size:22px; padding:17px 26px; }
+/* nas telas ao vivo (lobby · jogo · pódio) tudo cabe na tela, sem
+   precisar rolar — só o editor e o relatório continuam roláveis */
+body.host{ height:100dvh; overflow:hidden; }
+body.host.scroll-ok{ height:auto; min-height:100dvh; overflow:visible; }
+body.host #page{ max-width:1200px; box-shadow:none; height:100dvh; overflow:hidden; }
+body.host.scroll-ok #page{ height:auto; min-height:100dvh; overflow:visible; }
+body.host main#content{ padding:14px 26px 12px; gap:12px; overflow:hidden; justify-content:center; }
+body.host.scroll-ok main#content{ overflow:visible; justify-content:flex-start; }
+body.host .level-label{ font-size:18px; }
+body.host .score-badge{ font-size:18px; padding:5px 14px; }
+body.host .home-card{ padding:18px 22px; gap:8px; }
+body.host .home-card h1{ font-size:30px; }
+body.host .home-sub{ font-size:16px; }
+body.host .btn{ font-size:20px; padding:14px 24px; }
 body.host .instruction{ font-size:14px; }
+body.host .question-card{ padding:18px 22px; gap:10px; }
+body.host .mascot-img{ width:100px; height:100px; }
+body.host .pin-big{ font-size:60px; padding:10px 22px; }
+body.host .fr-sentence{ font-size:30px; margin:2px 0 10px; }
+body.host .rank-row{ padding:8px 14px; }
+body.host .rank-row img{ width:48px; height:48px; }
+body.host .count-num{ font-size:72px; margin:4px 0; }
+body.host .podium-col img{ width:86px; height:86px; }
+body.host .podium-1 .podium-block{ height:110px; }
+body.host .podium-2 .podium-block{ height:86px; }
+body.host .podium-3 .podium-block{ height:68px; }
+body.host .host-option{ font-size:19px; padding:13px 16px; }
+body.host .host-option svg{ width:30px; height:30px; }
 
 /* ---------- TOPBAR ---------- */
 #topbar{
@@ -361,14 +381,23 @@ body.host .pin-big{ font-size:92px; }
 .count-num{ font-size:96px; color:var(--laranja-escuro); margin:10px 0; animation:popIn .3s ease; }
 .big-num{ font-size:56px; color:var(--laranja-escuro); margin:4px 0; }
 .mode-selo{
-  display:inline-flex; align-items:center; gap:8px;
+  display:inline-flex; align-items:center; gap:10px;
   background:var(--azul-claro); color:var(--text);
-  font-size:16px; font-weight:800; text-transform:uppercase; letter-spacing:.6px;
-  border-radius:999px; padding:8px 18px;
+  font-size:20px; font-weight:800; text-transform:uppercase; letter-spacing:.6px;
+  border-radius:999px; padding:12px 26px;
+  box-shadow:0 4px 0 rgba(0,0,0,.06);
+  animation:modoPop .55s cubic-bezier(.34,1.56,.64,1);
 }
+body.host .mode-selo{ font-size:30px; padding:16px 36px; gap:12px; }
 .mode-selo.dupla{ background:var(--laranja-salmao); }
 .mode-selo.veloz{ background:var(--amarelo); }
 .mode-selo.arriscada{ background:var(--rosa); }
+@keyframes modoPop{
+  0%{ opacity:0; transform:scale(.4) rotate(-6deg); }
+  55%{ opacity:1; transform:scale(1.14) rotate(2deg); }
+  80%{ transform:scale(.96) rotate(0deg); }
+  100%{ opacity:1; transform:scale(1) rotate(0deg); }
+}
 .timer-num{ font-size:30px; color:var(--laranja-escuro); }
 .timer-num.alerta{ color:var(--vermelho); animation:pulse 1s infinite; }
 
@@ -378,10 +407,14 @@ body.host .pin-big{ font-size:92px; }
   display:flex; align-items:center; gap:14px;
   background:var(--bg); border:2px solid var(--border);
   border-radius:var(--radius-md); padding:10px 14px;
-  transition:transform .5s cubic-bezier(.4,0,.2,1), background .3s ease;
+  position:relative;
+  transition:transform .5s cubic-bezier(.4,0,.2,1), background .3s ease, box-shadow .3s ease;
+}
+.rank-row.rank-move-up{
+  background:#FFF5EA; border-color:var(--amarelo);
+  box-shadow:0 0 0 3px rgba(242,164,68,.35), 0 8px 18px rgba(242,164,68,.35);
 }
 .rank-row img{ width:52px; height:52px; border-radius:50%; object-fit:cover; border:2px solid var(--amarelo); flex-shrink:0; }
-body.host .rank-row img{ width:64px; height:64px; }
 .rank-name{ font-size:20px; flex:1; text-align:left; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .rank-pts{ font-size:22px; color:var(--laranja-escuro); white-space:nowrap; }
 .rank-gain{ font-size:14px; font-weight:800; color:var(--green-correct-dark); background:#EFFAEC; border-radius:999px; padding:3px 10px; white-space:nowrap; }
