@@ -343,7 +343,7 @@ function linkDoJogador(){
 function telaLobby(){
   const lista = Object.entries(H.jogadores).map(([id,j])=>`
     <div class="player-chip">
-      <img src="${retratoDe(j.personagem)}" alt="" onerror="this.onerror=null;this.src='${avatarFallback(j.personagem)}'">
+      <img src="${retratoDe(j.personagem)}" alt="${esc(j.apelido)}" onerror="this.onerror=null;this.src=avatarFallback('${jsStr(j.personagem||'')}')">
       <span class="player-name">${esc(j.apelido)}</span>
     </div>`).join('');
   const n = Object.keys(H.jogadores).length;
@@ -404,6 +404,7 @@ function iniciarJogo(){
 async function anunciar(i){
   pararTudo();
   H.indice = i; H.fase = 'anuncio'; H.travaRevelacao = false;
+  H._rankAnimKey = null; /* permite animar o ranking desta pergunta */
   contagem = 3;
   const p = H.quiz.perguntas[i];
   await escrever({
@@ -637,35 +638,60 @@ function listaOrdenada(){
 }
 
 /* anima a fileira de quem ultrapassou outro participante no ranking,
-   comparando a ordem atual com a do ranking anterior (técnica FLIP) */
+   comparando a ordem atual com a do ranking anterior (técnica FLIP).
+   Roda no máximo uma vez por pergunta para não misturar imagens em re-renders. */
 function animarRanking(){
+  const chave = H.indice + ':' + (H.fase || '');
+  if(H._rankAnimKey === chave) return; /* já animou este ranking */
   const reduzido = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const rows = Array.prototype.slice.call(document.querySelectorAll('.rank-row[data-id]'));
   if(!rows.length) return;
   const prev = H.prevTop5 || [];
-  if(!reduzido){
+  const atual = rows.map(r => r.dataset.id);
+  const mudou = prev.length && atual.some((id, i) => prev.indexOf(id) !== i);
+  if(!reduzido && mudou){
     let rowH = 74;
-    if(rows.length > 1) rowH = rows[1].getBoundingClientRect().top - rows[0].getBoundingClientRect().top;
+    if(rows.length > 1){
+      const a = rows[0].getBoundingClientRect();
+      const b = rows[1].getBoundingClientRect();
+      rowH = b.top - a.top;
+    }
     rows.forEach((row, newIndex) => {
       const id = row.dataset.id;
       const oldIndex = prev.indexOf(id);
       if(oldIndex === -1 || oldIndex === newIndex) return;
       const delta = (oldIndex - newIndex) * rowH;
+      /* trava o conteúdo da linha (imagem+nome) ao personagem certo durante o slide */
+      row.style.willChange = 'transform';
       row.style.transition = 'none';
       row.style.transform = `translateY(${delta}px)`;
-      row.style.zIndex = oldIndex > newIndex ? '2' : '1';
-      row.getBoundingClientRect(); // força o reflow antes de animar
+      row.style.zIndex = oldIndex > newIndex ? '3' : '1';
+      void row.offsetHeight; /* reflow */
       requestAnimationFrame(()=>{
         row.style.transition = 'transform .6s cubic-bezier(.34,1.56,.64,1)';
         row.style.transform = 'translateY(0)';
         if(oldIndex > newIndex){
           row.classList.add('rank-move-up');
-          setTimeout(()=>row.classList.remove('rank-move-up'), 900);
+          setTimeout(()=>{
+            row.classList.remove('rank-move-up');
+            row.style.willChange = '';
+            row.style.zIndex = '';
+            row.style.transition = '';
+            row.style.transform = '';
+          }, 700);
+        } else {
+          setTimeout(()=>{
+            row.style.willChange = '';
+            row.style.zIndex = '';
+            row.style.transition = '';
+            row.style.transform = '';
+          }, 700);
         }
       });
     });
   }
-  H.prevTop5 = rows.map(r => r.dataset.id);
+  H.prevTop5 = atual;
+  H._rankAnimKey = chave;
 }
 
 function blocoRanking(){
@@ -674,10 +700,11 @@ function blocoRanking(){
   const linhas = top.map((j,i)=>{
     const g = Number(j.ultimoGanho)||0;
     const cls = g > 0 ? '' : (g < 0 ? 'neg' : 'zero');
+    /* data-personagem ajuda a depurar e garante que img acompanha o id da linha */
     return `
-      <div class="rank-row" data-id="${esc(j.id)}">
+      <div class="rank-row" data-id="${esc(j.id)}" data-personagem="${esc(j.personagem||'')}">
         <span class="chip-num">${i+1}</span>
-        <img src="${galoDe(j.personagem)}" alt="" onerror="this.onerror=null;this.src='${avatarFallback(j.personagem)}'">
+        <img src="${galoDe(j.personagem)}" alt="${esc(j.apelido)}" decoding="sync" onerror="this.onerror=null;this.src=avatarFallback('${jsStr(j.personagem||'')}')">
         <span class="rank-name">${esc(j.apelido)}</span>
         <span class="rank-gain ${cls}">${g>0?'+':''}${formatScore(g)}</span>
         <span class="rank-pts">${formatScore(j.pontos||0)}</span>
