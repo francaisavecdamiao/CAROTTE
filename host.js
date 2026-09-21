@@ -21,7 +21,8 @@ const H = {
   erros:[],
   aba:'ranking',
   resumed:false,
-  travaRevelacao:false
+  travaRevelacao:false,
+  prevTop5:[]          // ordem do ranking anterior, para animar quem ultrapassou quem
 };
 
 let hostListeners = [];
@@ -62,10 +63,13 @@ function apagarJogo(){
 function render(){
   renderTopbar();
   const c = document.getElementById('content');
+  const rolavel = (H.tela === 'editor' || H.tela === 'relatorio');
+  document.body.classList.toggle('scroll-ok', rolavel);
+  document.documentElement.style.overflow = rolavel ? '' : 'hidden';
   switch(H.tela){
     case 'editor':    c.innerHTML = telaEditor(); break;
     case 'lobby':     c.innerHTML = telaLobby(); desenharQR(); break;
-    case 'jogo':      c.innerHTML = telaJogo(); break;
+    case 'jogo':      c.innerHTML = telaJogo(); if(H.fase==='ranking') animarRanking(); break;
     case 'podio':     c.innerHTML = telaPodio(); break;
     case 'relatorio': c.innerHTML = telaRelatorio(); break;
     default:          c.innerHTML = telaAbertura();
@@ -87,7 +91,7 @@ function renderTopbar(){
 
   const nJog = Object.keys(H.jogadores).length;
   const botoes = (H.tela === 'abertura' || H.tela === 'editor') ? '' : `
-    <button class="mute-btn" title="som de fundo" onclick="alternarSom(this)">${music.icon()}</button>
+    <button class="mute-btn" title="som de fundo" onclick="alternarSom(this)">${som.icon()}</button>
     <button class="restart-btn" title="encerrar e recomeçar" onclick="reiniciarHost()">&#8634;</button>`;
 
   bar.innerHTML = `
@@ -101,7 +105,7 @@ function renderTopbar(){
     <div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>`;
 }
 
-function alternarSom(btn){ btn.innerText = music.toggle() ? '🔇' : '🔊'; }
+function alternarSom(btn){ btn.innerText = som.toggle() ? '🔇' : '🔊'; }
 
 /* =========================================================
    TELA — ABERTURA
@@ -112,11 +116,10 @@ function telaAbertura(){
     ? `<button class="btn-ghost btn" onclick="retomarJogo()">retomar o jogo ${esc(salvo.pin)}</button>` : '';
   return `
     <div class="home-card">
-      <img src="images/LOGO.png" alt="Carotte" class="brand-logo" onerror="this.style.display='none'">
+      <img src="images/CAROTTELOGO.png" alt="Carotte" class="brand-logo" onerror="this.style.display='none'">
       <h1>carotte</h1>
       <p class="home-sub">Quiz ao vivo para escolas, treinamentos e eventos.<br>
         Você mostra as perguntas na tela grande; a turma responde pelo celular.</p>
-      <img src="images/galo.png" alt="" class="mascot-img" onerror="this.style.display='none'">
       <div class="btn-row" style="margin-top:8px">
         <button class="btn" onclick="criarDoZero()">criar um quiz</button>
         <button class="btn btn-ghost" onclick="document.getElementById('jsonFile').click()">importar json</button>
@@ -320,9 +323,8 @@ async function abrirSala(){
       estado:{ fase:'lobby', indice:0, total:H.quiz.perguntas.length }
     });
     gameRef(H.pin).onDisconnect().update({ 'meta/hostOnline': false });
-    H.fase = 'lobby'; H.indice = 0; H.tela = 'lobby';
+    H.fase = 'lobby'; H.indice = 0; H.tela = 'lobby'; H.prevTop5 = [];
     ouvirJogo();
-    music.start();
     render();
   }catch(e){
     H.erros = ['não consegui criar a sala; verifique a conexão e as regras do banco'];
@@ -341,7 +343,7 @@ function linkDoJogador(){
 function telaLobby(){
   const lista = Object.entries(H.jogadores).map(([id,j])=>`
     <div class="player-chip">
-      <img src="${retratoDe(j.personagem)}" alt="" onerror="this.style.display='none'">
+      <img src="${retratoDe(j.personagem)}" alt="" onerror="this.onerror=null;this.src='${avatarFallback(j.personagem)}'">
       <span class="player-name">${esc(j.apelido)}</span>
     </div>`).join('');
   const n = Object.keys(H.jogadores).length;
@@ -359,7 +361,7 @@ function telaLobby(){
     </div>
 
     <div class="question-card">
-      <p class="instruction">${n === 0 ? 'ninguém entrou ainda' : `${n} ${n===1?'participante':'participantes'} no lobby`}</p>
+      <p class="instruction">${n === 0 ? 'ninguém entrou ainda' : `${n} na sala`}</p>
       <div class="lobby-grid">${lista || ''}</div>
     </div>
     <div class="footer-space"></div>
@@ -409,7 +411,6 @@ async function anunciar(i){
     modo:p.modo, pergunta: null
   });
   playSound('modo');
-  music.start();
   render();
   tickTimer = setInterval(()=>{
     contagem--;
@@ -435,7 +436,6 @@ async function perguntar(i, retomando){
     });
     playSound('question');
   }
-  music.start();
   render();
   tickTimer = setInterval(()=>{
     const restMs = Math.max(0, H.fimEm - serverNow());
@@ -554,7 +554,6 @@ async function finalizar(){
   pararTudo();
   H.fase = 'fim'; H.tela = 'podio';
   await escrever({ fase:'fim', indice:H.indice, total:H.quiz.perguntas.length });
-  music.stop();
   playSound('win');
   render();
 }
@@ -637,6 +636,38 @@ function listaOrdenada(){
     .sort((a,b) => (b.pontos||0) - (a.pontos||0) || String(a.apelido).localeCompare(String(b.apelido)));
 }
 
+/* anima a fileira de quem ultrapassou outro participante no ranking,
+   comparando a ordem atual com a do ranking anterior (técnica FLIP) */
+function animarRanking(){
+  const reduzido = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const rows = Array.prototype.slice.call(document.querySelectorAll('.rank-row[data-id]'));
+  if(!rows.length) return;
+  const prev = H.prevTop5 || [];
+  if(!reduzido){
+    let rowH = 74;
+    if(rows.length > 1) rowH = rows[1].getBoundingClientRect().top - rows[0].getBoundingClientRect().top;
+    rows.forEach((row, newIndex) => {
+      const id = row.dataset.id;
+      const oldIndex = prev.indexOf(id);
+      if(oldIndex === -1 || oldIndex === newIndex) return;
+      const delta = (oldIndex - newIndex) * rowH;
+      row.style.transition = 'none';
+      row.style.transform = `translateY(${delta}px)`;
+      row.style.zIndex = oldIndex > newIndex ? '2' : '1';
+      row.getBoundingClientRect(); // força o reflow antes de animar
+      requestAnimationFrame(()=>{
+        row.style.transition = 'transform .6s cubic-bezier(.34,1.56,.64,1)';
+        row.style.transform = 'translateY(0)';
+        if(oldIndex > newIndex){
+          row.classList.add('rank-move-up');
+          setTimeout(()=>row.classList.remove('rank-move-up'), 900);
+        }
+      });
+    });
+  }
+  H.prevTop5 = rows.map(r => r.dataset.id);
+}
+
 function blocoRanking(){
   const lista = listaOrdenada();
   const top = lista.slice(0,5);
@@ -644,9 +675,9 @@ function blocoRanking(){
     const g = Number(j.ultimoGanho)||0;
     const cls = g > 0 ? '' : (g < 0 ? 'neg' : 'zero');
     return `
-      <div class="rank-row">
+      <div class="rank-row" data-id="${esc(j.id)}">
         <span class="chip-num">${i+1}</span>
-        <img src="${galoDe(j.personagem)}" alt="" onerror="this.style.display='none'">
+        <img src="${galoDe(j.personagem)}" alt="" onerror="this.onerror=null;this.src='${avatarFallback(j.personagem)}'">
         <span class="rank-name">${esc(j.apelido)}</span>
         <span class="rank-gain ${cls}">${g>0?'+':''}${formatScore(g)}</span>
         <span class="rank-pts">${formatScore(j.pontos||0)}</span>
@@ -898,7 +929,6 @@ async function retomarJogo(){
     H.fimEm = est.fimEm || 0;
     H.resumed = true;
     ouvirJogo();
-    music.start();
 
     if(H.fase === 'lobby'){ H.tela = 'lobby'; }
     else if(H.fase === 'fim'){ H.tela = 'podio'; }
