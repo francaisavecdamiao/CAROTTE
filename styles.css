@@ -103,6 +103,18 @@ body.host .podium-3 .podium-block{ height:68px; }
 body.host .host-option{ font-size:19px; padding:13px 16px; }
 body.host .host-option svg{ width:30px; height:30px; }
 
+/* contêiner que a tela do host reduz para caber inteiro (ver host.js › ajustarEscala) */
+#fit{ display:flex; flex-direction:column; gap:12px; flex:1; min-height:0; width:100%; transform-origin:top left; }
+#fit > *{ flex-shrink:0; }
+body.host.scroll-ok #fit{ flex:none; }
+
+/* ranking parcial no host: laterais livres para as reações com emoji */
+body.host.fase-ranking #page{ max-width:none; }
+body.host.fase-ranking main#content{
+  padding-left:max(210px, calc((100vw - 900px) / 2));
+  padding-right:max(210px, calc((100vw - 900px) / 2));
+}
+
 /* ---------- TOPBAR ---------- */
 #topbar{
   position:sticky; top:0; z-index:10;
@@ -110,13 +122,13 @@ body.host .host-option svg{ width:30px; height:30px; }
   border-bottom:2px solid var(--border);
   padding:10px 16px 12px;
 }
-body.host #topbar{ padding:14px 28px 16px; }
+body.host #topbar{ padding:10px 28px 12px; }
 .topbar-row{
   display:flex; align-items:center; justify-content:space-between;
   gap:10px; margin-bottom:8px;
 }
 .topbar-logo{ height:26px; width:auto; object-fit:contain; flex-shrink:0; }
-body.host .topbar-logo{ height:38px; }
+body.host .topbar-logo{ height:32px; }
 .level-label{
   font-size:15px; color:var(--text);
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
@@ -203,7 +215,6 @@ main#content{
   align-items:center; gap:10px; animation:popIn .35s ease;
 }
 .mascot-img{ width:110px; height:110px; object-fit:contain; margin-bottom:4px; }
-body.host .mascot-img{ width:150px; height:150px; }
 .mascot-sm{ width:76px; height:76px; object-fit:contain; }
 .home-card h1{ font-size:24px; color:var(--text); text-transform:lowercase; margin:0; }
 .home-sub{ font-size:15px; color:var(--text-light); margin:0; line-height:1.5; }
@@ -246,7 +257,6 @@ body.host .mascot-img{ width:150px; height:150px; }
   animation:popIn .3s ease;
   display:flex; flex-direction:column; align-items:center; text-align:center;
 }
-body.host .question-card{ padding:28px 24px; }
 .intro-card{
   background:var(--card); border:2px solid var(--border);
   border-radius:var(--radius-lg); padding:20px 16px;
@@ -269,7 +279,7 @@ body.host .question-card{ padding:28px 24px; }
   font-size:19px; color:var(--text); line-height:1.7;
   margin:4px 0 16px; width:100%; text-align:center;
 }
-body.host .fr-sentence{ font-size:40px; line-height:1.4; }
+body.host .fr-sentence{ line-height:1.35; }
 .chip-label{
   font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.4px;
   color:var(--text-light); margin:14px 0 8px; width:100%; text-align:left;
@@ -354,7 +364,6 @@ body.host .fr-sentence{ font-size:40px; line-height:1.4; }
   border-radius:var(--radius-lg); padding:12px 26px; margin:6px 0;
   display:inline-block;
 }
-body.host .pin-big{ font-size:92px; }
 .pin-input{
   width:100%; font-size:34px; letter-spacing:10px; text-align:center;
   padding:14px 12px; border:2px solid var(--border); border-radius:var(--radius-md);
@@ -388,7 +397,7 @@ body.host .pin-big{ font-size:92px; }
   box-shadow:0 4px 0 rgba(0,0,0,.06);
   animation:modoPop .55s cubic-bezier(.34,1.56,.64,1);
 }
-body.host .mode-selo{ font-size:30px; padding:16px 36px; gap:12px; }
+body.host .mode-selo{ font-size:24px; padding:12px 28px; gap:10px; }
 .mode-selo.dupla{ background:var(--laranja-salmao); }
 .mode-selo.veloz{ background:var(--amarelo); }
 .mode-selo.arriscada{ background:var(--rosa); }
@@ -549,4 +558,53 @@ table.rep tr:last-child td{ border-bottom:none; }
   .host-options{ grid-template-columns:1fr; }
   .podium-col{ width:140px; }
   .podium-col img{ width:84px; height:84px; }
+}
+
+/* ---------- REAÇÕES COM EMOJI ---------- */
+/* participante: grade 3×3 no ranking parcial */
+.emoji-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:10px; width:100%; margin:4px 0 6px; }
+.emoji-btn{
+  font-size:34px; line-height:1; padding:10px 0; cursor:pointer;
+  background:#fff; border:2px solid var(--amarelo); border-bottom-width:4px;
+  border-radius:var(--radius-md); transition:transform .05s ease, opacity .2s ease;
+}
+.emoji-btn:active:not(:disabled){ transform:translateY(3px); }
+.emoji-btn:disabled{ cursor:default; }
+.emoji-btn.dim{ opacity:.3; }
+.emoji-btn.on{ background:#FFF5EA; border-color:var(--laranja-escuro); transform:scale(1.06); }
+
+/* host: personagem sobre o galo nas laterais, emojis subindo */
+#reacoes-host{
+  display:none; position:fixed; left:0; right:0; bottom:0; height:62vh;
+  pointer-events:none; z-index:30;
+}
+body.host.fase-ranking #reacoes-host{ display:block; }
+.rx-lado{ position:absolute; top:0; bottom:0; width:200px; }
+.rx-esq{ left:0; }
+.rx-dir{ right:0; }
+.rx-ator{
+  position:absolute; bottom:12px; width:84px;
+  display:flex; flex-direction:column; align-items:center; gap:2px;
+  animation:rxEntra .25s ease-out, rxSai .25s ease-in 2.75s forwards;
+}
+.rx-ator img{
+  width:76px; height:76px; border-radius:50%; object-fit:cover;
+  border:3px solid var(--amarelo); background:#fff;
+  box-shadow:0 4px 10px rgba(0,0,0,.15);
+}
+.rx-nome{
+  font-family:'Feather Bold','Nunito',sans-serif; font-size:11px; color:var(--text);
+  background:#fff; border-radius:999px; padding:1px 8px; max-width:100px;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.rx-emoji{
+  position:absolute; bottom:82px; left:50%; line-height:1;
+  animation:rxSobe .8s ease-out forwards;
+}
+@keyframes rxEntra{ from{ opacity:0; transform:translateY(24px) scale(.7); } to{ opacity:1; transform:none; } }
+@keyframes rxSai{ to{ opacity:0; } }
+@keyframes rxSobe{
+  0%{ opacity:0; transform:translate(-50%,0) scale(.4); }
+  15%{ opacity:1; }
+  100%{ opacity:0; transform:translate(calc(-50% + var(--dx,0px)), var(--dy,-200px)) scale(1.15); }
 }
