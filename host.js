@@ -52,7 +52,7 @@ function apagarJogo(){
   try{
     gameRef(H.pin).update({
       meta:null, perguntas:null, estado:null,
-      jogadores:null, respostas:null, resultados:null
+      jogadores:null, respostas:null, resultados:null, reacoes:null
     });
   }catch(e){}
 }
@@ -66,16 +66,46 @@ function render(){
   const rolavel = (H.tela === 'editor' || H.tela === 'relatorio');
   document.body.classList.toggle('scroll-ok', rolavel);
   document.documentElement.style.overflow = rolavel ? '' : 'hidden';
+  const noRanking = (H.tela === 'jogo' && H.fase === 'ranking');
+  document.body.classList.toggle('fase-ranking', noRanking);
+  if(!noRanking) limparReacoes();
+  let html;
   switch(H.tela){
-    case 'editor':    c.innerHTML = telaEditor(); break;
-    case 'lobby':     c.innerHTML = telaLobby(); desenharQR(); break;
-    case 'jogo':      c.innerHTML = telaJogo(); if(H.fase==='ranking') animarRanking(); break;
-    case 'podio':     c.innerHTML = telaPodio(); break;
-    case 'relatorio': c.innerHTML = telaRelatorio(); break;
-    default:          c.innerHTML = telaAbertura();
+    case 'editor':    html = telaEditor(); break;
+    case 'lobby':     html = telaLobby(); break;
+    case 'jogo':      html = telaJogo(); break;
+    case 'podio':     html = telaPodio(); break;
+    case 'relatorio': html = telaRelatorio(); break;
+    default:          html = telaAbertura();
   }
+  /* #fit é o contêiner que se reduz para caber inteiro na tela do host */
+  c.innerHTML = `<div id="fit">${html}</div>`;
+  if(H.tela === 'lobby') desenharQR();
+  if(noRanking) animarRanking();
+  ajustarEscala();
   salvarHost();
 }
+
+/* ---------------------------------------------------------
+   AJUSTE À TELA — se o conteúdo passar da altura disponível,
+   reduz tudo proporcionalmente para aparecer por inteiro.
+   (editor e relatório continuam rolando normalmente)
+   --------------------------------------------------------- */
+function ajustarEscala(){
+  const fit = document.getElementById('fit');
+  if(!fit) return;
+  fit.style.transform = ''; fit.style.width = ''; fit.style.height = '';
+  if(document.body.classList.contains('scroll-ok')) return;
+  const h = fit.clientHeight, sh = fit.scrollHeight;
+  if(!h || sh <= h + 1) return;
+  const s = Math.max(0.4, (h / sh) * 0.985);
+  fit.style.width  = (100 / s) + '%';
+  fit.style.height = (h / s) + 'px';
+  fit.style.transform = `scale(${s})`;
+}
+window.addEventListener('resize', ajustarEscala);
+if(document.fonts && document.fonts.ready) document.fonts.ready.then(ajustarEscala);
+window.addEventListener('load', ajustarEscala);
 
 function renderTopbar(){
   const bar = document.getElementById('topbar');
@@ -386,6 +416,7 @@ function desenharQR(){
    CONTROLE DAS FASES
    ========================================================= */
 function pararTudo(){
+  pararReacoes();
   if(faseTimer){ clearTimeout(faseTimer); faseTimer = null; }
   if(tickTimer){ clearInterval(tickTimer); tickTimer = null; }
 }
@@ -540,6 +571,7 @@ async function revelar(){
 async function mostrarRanking(){
   playSound('click');
   H.fase = 'ranking';
+  ouvirReacoes(H.indice);
   await escrever({ fase:'ranking', indice:H.indice, total:H.quiz.perguntas.length });
   playSound('level');
   render();
@@ -934,6 +966,73 @@ function ouvirJogo(){
 }
 
 /* =========================================================
+   REAÇÕES COM EMOJI (só durante o ranking parcial)
+   Nas laterais da tela, embaixo: o personagem em cima do galo
+   e os emojis pipocando para cima por 3 segundos.
+   Fica fora do #page e sem pointer-events: não cobre o ranking.
+   ========================================================= */
+let reacoesRef = null, reacoesCb = null, rxLado = 0;
+
+function garantirOverlay(){
+  let o = document.getElementById('reacoes-host');
+  if(!o){
+    o = document.createElement('div');
+    o.id = 'reacoes-host';
+    o.innerHTML = '<div class="rx-lado rx-esq"></div><div class="rx-lado rx-dir"></div>';
+    document.body.appendChild(o);
+  }
+  return o;
+}
+function limparReacoes(){
+  const o = document.getElementById('reacoes-host');
+  if(o) o.querySelectorAll('.rx-lado').forEach(l => { l.innerHTML = ''; });
+}
+function ouvirReacoes(indice){
+  pararReacoes();
+  if(!H.pin || !db) return;
+  const ref = gameRef(H.pin, 'reacoes/' + indice);
+  const cb = s => {
+    const r = s.val();
+    if(!r || H.fase !== 'ranking' || H.indice !== indice) return;
+    if(REACOES.indexOf(r.emoji) === -1) return;
+    const ts = Number(r.timestamp) || 0;
+    if(ts && serverNow() - ts > 8000) return;   /* ignora reações antigas ao reconectar */
+    dispararReacao(s.key, r.emoji);
+  };
+  ref.on('child_added', cb);
+  reacoesRef = ref; reacoesCb = cb;
+}
+function pararReacoes(){
+  if(reacoesRef){ try{ reacoesRef.off('child_added', reacoesCb); }catch(e){} }
+  reacoesRef = null; reacoesCb = null;
+  limparReacoes();
+}
+function dispararReacao(id, emoji){
+  const o = garantirOverlay();
+  const lado = o.querySelector((rxLado++ % 2) ? '.rx-dir' : '.rx-esq');
+  const j = H.jogadores[id] || {};
+  const pers = j.personagem || '';
+  const ator = document.createElement('div');
+  ator.className = 'rx-ator';
+  ator.style.left = (8 + Math.random()*100) + 'px';
+  ator.innerHTML = `<img src="${galoDe(pers)}" alt="" onerror="this.onerror=null;this.src=avatarFallback('${jsStr(pers)}')"><span class="rx-nome">${esc(j.apelido||'')}</span>`;
+  lado.appendChild(ator);
+  const t0 = performance.now();
+  const spawn = setInterval(()=>{
+    if(!ator.isConnected || performance.now() - t0 > 2200){ clearInterval(spawn); return; }
+    const e = document.createElement('span');
+    e.className = 'rx-emoji';
+    e.textContent = emoji;
+    e.style.setProperty('--dx', (Math.random()*90 - 45) + 'px');
+    e.style.setProperty('--dy', -(150 + Math.random()*190) + 'px');
+    e.style.fontSize = (24 + Math.random()*14) + 'px';
+    ator.appendChild(e);
+    setTimeout(()=>e.remove(), 850);
+  }, 130);
+  setTimeout(()=>{ clearInterval(spawn); ator.remove(); }, 3000);
+}
+
+/* =========================================================
    RETOMADA
    ========================================================= */
 async function retomarJogo(){
@@ -956,6 +1055,7 @@ async function retomarJogo(){
     H.fimEm = est.fimEm || 0;
     H.resumed = true;
     ouvirJogo();
+    if(H.fase === 'ranking') ouvirReacoes(H.indice);
 
     if(H.fase === 'lobby'){ H.tela = 'lobby'; }
     else if(H.fase === 'fim'){ H.tela = 'podio'; }
