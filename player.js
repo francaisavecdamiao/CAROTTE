@@ -20,7 +20,8 @@ const P = {
   pergunta:null,
   minhaResposta:null,
   eu:{ pontos:0, sequencia:0, maiorSequencia:0, acertos:0, ultimoGanho:0, ultimoAcerto:null },
-  erro:'', resumed:false, total:0, posicao:null, jogadores:0, somDe:-1
+  erro:'', resumed:false, total:0, posicao:null, jogadores:0, somDe:-1,
+  reacoes:{}          // indice -> emoji já enviado naquele ranking
 };
 
 let listeners = [];
@@ -365,6 +366,31 @@ function telaRevelacao(){
     <div class="footer-space"></div>`;
 }
 
+function blocoReacoes(){
+  const enviado = P.reacoes[P.indice] || null;
+  const botoes = REACOES.map((e,k)=>`
+    <button class="emoji-btn ${enviado ? (enviado===e ? 'on' : 'dim') : ''}" ${enviado ? 'disabled' : ''}
+            onclick="reagir(${k})" aria-label="reagir com ${e}">${e}</button>`).join('');
+  return `
+      <p class="instruction" style="margin:6px 0 0">${enviado ? 'reação enviada!' : 'mande uma reação para a tela'}</p>
+      <div class="emoji-grid">${botoes}</div>`;
+}
+
+async function reagir(k){
+  const emoji = REACOES[k];
+  if(!emoji || P.fase !== 'ranking' || P.reacoes[P.indice] || !P.id) return;
+  playSound('click');
+  const idx = P.indice;
+  P.reacoes[idx] = emoji;
+  render();
+  try{
+    await gameRef(P.pin, `reacoes/${idx}/${P.id}`).set({ emoji: emoji, timestamp: SERVER_TS });
+  }catch(e){
+    delete P.reacoes[idx];
+    render();
+  }
+}
+
 function telaRanking(){
   return `
     <div class="home-card">
@@ -372,7 +398,8 @@ function telaRanking(){
       <h1>${P.posicao ? `você está em ${P.posicao}º` : 'olhe a tela principal'}</h1>
       <p class="final-score">${formatScore(P.eu.pontos)}<span> pontos</span></p>
       <p class="home-sub">${P.eu.sequencia > 1 ? `🔥 ${P.eu.sequencia} acertos seguidos!` : 'A próxima pergunta vem aí.'}</p>
-      <img src="${P.personagem ? galoDe(P.personagem) : 'images/galo.png'}" alt="" class="mascot-img" style="border-radius:50%;object-fit:cover;border:3px solid var(--amarelo)" onerror="this.style.display='none'">
+      ${blocoReacoes()}
+      <img src="${P.personagem ? galoDe(P.personagem) : 'images/galo.png'}" alt="" class="mascot-sm" style="border-radius:50%;object-fit:cover;border:3px solid var(--amarelo)" onerror="this.style.display='none'">
     </div>
     <div class="footer-space"></div>`;
 }
@@ -544,6 +571,8 @@ async function boot(){
         const idx = typeof est.indice === 'number' ? est.indice : 0;
         const r = await gameRef(P.pin, `respostas/${idx}/${P.id}`).get();
         if(r.exists()) P.minhaResposta = r.val().opcao;
+        const rx = await gameRef(P.pin, `reacoes/${idx}/${P.id}`).get();
+        if(rx.exists()) P.reacoes[idx] = rx.val().emoji;
         ouvirJogo(); render(); return;
       }
     }catch(e){}
