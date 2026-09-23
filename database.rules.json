@@ -18,6 +18,16 @@
           }
         },
 
+        "reacoes": {
+          ".write": "!newData.exists()",
+          "$indice": {
+            "$jogador": {
+              ".write": "!data.exists()",
+              ".validate": "newData.hasChildren(['emoji','timestamp']) && newData.child('emoji').isString() && newData.child('emoji').val().length <= 8"
+            }
+          }
+        },
+
         "respostas": {
           ".write": "!newData.exists()",
           "$indice": {
