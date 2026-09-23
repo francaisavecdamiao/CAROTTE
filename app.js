@@ -116,6 +116,11 @@ const MODOS = {
 const TEMPOS = [20,30,40,60];
 
 /* ---------------------------------------------------------
+   REAÇÕES (ranking parcial) — um emoji por participante por ranking
+   --------------------------------------------------------- */
+const REACOES = ['😂','🫠','😘','🥺','🥹','🤯','😵','😡','👻'];
+
+/* ---------------------------------------------------------
    PERSONAGENS
    retrato (.jpeg) no carrossel e no lobby
    "com galo" (.png) no ranking e no pódio, recortado em círculo
