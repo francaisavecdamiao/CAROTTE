@@ -8,10 +8,11 @@ const PAGE = document.body.dataset.page;   // 'entrada' | 'jogo'
 const SAVE_KEY = 'carotte_player_v1';
 
 const P = {
-  pin:null, id:null, apelido:'', personagem:null,
+  pin:null, id:null, apelido:'', personagem:null, skin:null,
   etapa:'pin',        // pin | carrossel | apelido | espera
   carIndex:0,
-  fase:'lobby',       // lobby | anuncio | pergunta | revelacao | ranking | fim
+  skinIndex:0,        // índice da skin escolhida dentro de SKINS_DISPONIVEIS
+  fase:'lobby',       // lobby | anuncio | pergunta | revelacao | ranking | ovada | fim
   indice:0,
   modo:'unica',
   correta:null,
@@ -21,7 +22,8 @@ const P = {
   minhaResposta:null,
   eu:{ pontos:0, sequencia:0, maiorSequencia:0, acertos:0, ultimoGanho:0, ultimoAcerto:null },
   erro:'', resumed:false, total:0, posicao:null, jogadores:0, somDe:-1,
-  reacoes:{}          // indice -> emoji já enviado naquele ranking
+  reacoes:{},
+  jogadoresSala:{}    // mapa de todos os jogadores para a tela de escolha de ovada
 };
 
 let listeners = [];
@@ -32,7 +34,7 @@ let alertaTocado = false;
    PERSISTÊNCIA
    ========================================================= */
 function salvar(){
-  saveState(SAVE_KEY, { v:1, pin:P.pin, id:P.id, apelido:P.apelido, personagem:P.personagem });
+  saveState(SAVE_KEY, { v:1, pin:P.pin, id:P.id, apelido:P.apelido, personagem:P.personagem, skin:P.skin });
 }
 function esquecer(){ clearState(SAVE_KEY); }
 
@@ -58,7 +60,8 @@ function render(){
     case 'anuncio':    c.innerHTML = telaAnuncio(); break;
     case 'pergunta':   c.innerHTML = telaPergunta(); break;
     case 'revelacao':  c.innerHTML = telaRevelacao(); break;
-    case 'ranking':    c.innerHTML = telaRanking(); break;
+    case 'ranking':    c.innerHTML = (P.eu.sequencia >= 5 && !P.jaJogouOvada) ? telaEscolhaOvada() : telaRanking(); break;
+    case 'ovada':      c.innerHTML = telaEsperaOvada(); break;
     case 'fim':        c.innerHTML = telaFim(); break;
     default:           c.innerHTML = telaEspera();
   }
@@ -214,25 +217,38 @@ function escolherPersonagem(){
   playSound('click');
   P.personagem = PERSONAGENS[P.carIndex].nome;
   P.apelido = P.personagem;
+  P.skinIndex = 0;
   P.etapa = 'apelido';
   render();
 }
 
 /* =========================================================
-   TELA 3 — APELIDO
+   TELA 3 — APELIDO E ESCOLHA DE SKIN
    ========================================================= */
+function girarSkin(d){
+  playSound('click');
+  const n = SKINS_DISPONIVEIS.length;
+  P.skinIndex = (P.skinIndex + d + n) % n;
+  render();
+}
+
 function telaApelido(){
-  const p = charByName(P.personagem);
+  const skinAtual = SKINS_DISPONIVEIS[P.skinIndex];
   return `
     <div class="question-card">
-      <p class="instruction">como você quer aparecer no ranking?</p>
-      <img src="${charSrc(p.retrato)}" alt="${esc(p.nome)}" style="width:130px;height:130px;border-radius:50%;object-fit:cover;border:3px solid var(--amarelo);margin-bottom:14px" onerror="this.style.display='none'">
-      <p class="field-label">seu apelido</p>
-      <input id="nickInput" class="text-input" maxlength="18" value="${esc(P.apelido)}"
+      <p class="instruction">escolha seu apelido e skin</p>
+      <div class="skin-selector-row" style="display:flex; align-items:center; justify-content:center; gap:12px; margin-bottom:12px;">
+        <button class="car-arrow" onclick="girarSkin(-1)">‹</button>
+        <img src="${charSrc(skinAtual)}" alt="Skin" style="width:120px;height:120px;border-radius:50%;object-fit:cover;border:3px solid var(--amarelo)" onerror="this.style.display='none'">
+        <button class="car-arrow" onclick="girarSkin(1)">›</button>
+      </div>
+      <p class="field-label">seu apelido (máx. 14 caracteres, sem espaços)</p>
+      <input id="nickInput" class="text-input" maxlength="14" value="${esc(P.apelido)}"
+             oninput="this.value = this.value.replace(/\\s/g, '').slice(0, 14)"
              onkeydown="if(event.key==='Enter') entrarNoJogo()">
       ${P.erro ? `<div class="gabarito">${P.erro}</div>` : ''}
     </div>
-    <button class="btn-ghost btn" onclick="voltarCarrossel()">trocar de personagem</button>
+    <button class="btn-ghost btn" onclick="voltarCarrossel()">voltar aos personagens</button>
     <div class="footer-space"></div>
     <button class="btn btn-block" id="joinBtn" onclick="entrarNoJogo()">entrar no jogo</button>`;
 }
@@ -242,7 +258,10 @@ async function entrarNoJogo(){
   playSound('click');
   const el = document.getElementById('nickInput');
   const nome = (el ? el.value : '').trim();
-  if(nome.length < 2){ P.erro = 'Escolha um apelido com pelo menos 2 letras.'; render(); return; }
+  if(nome.length < 2){ P.erro = 'Escolha um apelido com pelo menos 2 caracteres.'; render(); return; }
+  if(/\s/.test(nome)){ P.erro = 'O apelido não pode conter espaços.'; render(); return; }
+  if(nome.length > 14){ P.erro = 'O apelido pode ter no máximo 14 caracteres.'; render(); return; }
+
   const btn = document.getElementById('joinBtn');
   if(btn){ btn.disabled = true; btn.innerText = 'entrando…'; }
   try{
@@ -255,11 +274,13 @@ async function entrarNoJogo(){
     const existe = Object.values(jog).some(j => (j.apelido||'').toLowerCase() === nome.toLowerCase());
     if(existe){ P.erro = `Já existe alguém chamado "${esc(nome)}" nesse jogo. Escolha outro apelido.`; render(); return; }
 
+    const skinEscolhida = SKINS_DISPONIVEIS[P.skinIndex];
     const ref = gameRef(P.pin,'jogadores').push();
     P.id = ref.key;
     P.apelido = nome;
+    P.skin = skinEscolhida;
     await ref.set({
-      apelido: nome, personagem: P.personagem,
+      apelido: nome, personagem: P.personagem, skin: skinEscolhida,
       pontos: 0, sequencia: 0, maiorSequencia: 0, acertos: 0,
       ultimoGanho: 0, ultimoAcerto: null, entrouEm: SERVER_TS
     });
@@ -278,8 +299,8 @@ async function entrarNoJogo(){
    TELAS DO JOGO
    ========================================================= */
 function telaEspera(){
-  const img = P.personagem
-    ? `<img src="${retratoDe(P.personagem)}" alt="${esc(P.personagem)}" class="mascot-img" style="border-radius:50%;object-fit:cover;border:3px solid var(--amarelo)" onerror="this.onerror=null;this.src=avatarFallback('${jsStr(P.personagem||'')}')">`
+  const img = P.skin
+    ? `<img src="${charSrc(P.skin)}" alt="${esc(P.apelido)}" class="mascot-img" style="border-radius:50%;object-fit:cover;border:3px solid var(--amarelo)" onerror="this.onerror=null;this.src=avatarFallback('${jsStr(P.apelido||'')}')">`
     : `<img src="images/galo.png" alt="" class="mascot-img" onerror="this.style.display='none'">`;
   return `
     <div class="home-card">
@@ -287,7 +308,7 @@ function telaEspera(){
       <h1>aguardando o anfitrião iniciar…</h1>
       <p class="home-sub">Você está no jogo como <strong>${esc(P.apelido)}</strong>.</p>
       <div class="level-preview">
-        <div class="level-chip"><span class="chip-num">👤</span> ${esc(P.personagem||'')} <span class="chip-pts">${P.jogadores} na sala</span></div>
+        <div class="level-chip"><span class="chip-num">👤</span> ${esc(P.apelido)} <span class="chip-pts">${P.jogadores} na sala</span></div>
       </div>
     </div>
     <div class="footer-space"></div>
@@ -399,7 +420,52 @@ function telaRanking(){
       <p class="final-score">${formatScore(P.eu.pontos)}<span> pontos</span></p>
       <p class="home-sub">${P.eu.sequencia > 1 ? `🔥 ${P.eu.sequencia} acertos seguidos!` : 'A próxima pergunta vem aí.'}</p>
       ${blocoReacoes()}
-      <img src="${P.personagem ? galoDe(P.personagem) : 'images/galo.png'}" alt="" class="mascot-sm" style="border-radius:50%;object-fit:cover;border:3px solid var(--amarelo)" onerror="this.style.display='none'">
+      <img src="${P.skin ? charSrc(P.skin) : 'images/galo.png'}" alt="" class="mascot-sm" style="border-radius:50%;object-fit:cover;border:3px solid var(--amarelo)" onerror="this.style.display='none'">
+    </div>
+    <div class="footer-space"></div>`;
+}
+
+/* =========================================================
+   TELA — ESCOLHER OVADA (5 ACERTOS SEGUIDOS)
+   ========================================================= */
+function telaEscolhaOvada(){
+  const outros = Object.entries(P.jogadoresSala || {}).filter(([id]) => id !== P.id);
+  const listaHtml = outros.map(([id, j]) => `
+    <div class="ovada-alvo-chip" onclick="lancarOvada('${id}')">
+      <img src="${skinDe(j)}" alt="${esc(j.apelido)}" onerror="this.src=avatarFallback('${jsStr(j.apelido)}')">
+      <span>${esc(j.apelido)}</span>
+    </div>
+  `).join('');
+
+  return `
+    <div class="question-card">
+      <p class="instruction">🥚 5 acertos seguidos! hora da ovada!</p>
+      <p class="home-sub">Escolha um participante da sala para sofrer a ovada (−300 pontos):</p>
+      <div class="ovada-alvos-grid">${listaHtml || '<p>Nenhum outro jogador na sala.</p>'}</div>
+    </div>
+    <div class="footer-space"></div>`;
+}
+
+async function lancarOvada(alvoId){
+  playSound('click');
+  P.jaJogouOvada = true;
+  try {
+    await gameRef(P.pin, 'ovadas').push({
+      atribuidor: P.id,
+      vitima: alvoId,
+      timestamp: SERVER_TS
+    });
+  } catch(e){}
+  render();
+}
+
+function telaEsperaOvada(){
+  return `
+    <div class="question-card">
+      <p class="instruction">🥚 ovada em andamento!</p>
+      <img src="images/happygalo.png" alt="" class="mascot-img" onerror="this.style.display='none'">
+      <h1>olhe a tela principal!</h1>
+      <p class="home-sub">A ovada está voando…</p>
     </div>
     <div class="footer-space"></div>`;
 }
@@ -410,7 +476,7 @@ function telaFim(){
   const bom = pct >= 70;
   const img = bom ? 'images/happygalo.png' : 'images/sadgalo.png';
   return `
-    <div class="home-card">
+    <div class="question-card">
       <img src="${img}" alt="" class="mascot-img" onerror="this.style.display='none'">
       <h1>fim de jogo</h1>
       <p class="final-score">${formatScore(P.eu.pontos)}<span> pontos</span></p>
@@ -445,7 +511,7 @@ async function responder(opcao){
 }
 
 /* =========================================================
-   CRONÔMETRO (apenas visual no aparelho)
+   CRONÔMETRO
    ========================================================= */
 function pararTick(){ if(tickTimer){ clearInterval(tickTimer); tickTimer = null; } }
 function iniciarTick(){
@@ -478,7 +544,7 @@ function ouvirJogo(){
 
   on('meta','value', s => {
     const m = s.val();
-    if(!m){ // jogo removido
+    if(!m){
       esquecer(); alert('O apresentador encerrou este jogo.'); location.href='index.html'; return;
     }
     P.meta.titulo = m.titulo || '';
@@ -496,24 +562,22 @@ function ouvirJogo(){
     P.correta = (typeof e.correta === 'number') ? e.correta : null;
     P.total = e.total || P.total;
     P.modo = MODOS[e.modo] ? e.modo : 'unica';
-    P.pergunta = e.pergunta || null;   // enunciado + opções (sem o gabarito)
+    P.pergunta = e.pergunta || null;
 
-    if(P.indice !== indiceAnterior){ P.minhaResposta = null; }
+    if(P.indice !== indiceAnterior){
+      P.minhaResposta = null;
+      P.jaJogouOvada = false; // reseta a ovada para a nova pergunta
+    }
 
     if(P.fase === 'pergunta'){
-      if(faseAnterior !== 'pergunta'){
-        P.minhaResposta = null;
-        /* som da pergunta só no host */
-      }
+      if(faseAnterior !== 'pergunta'){ P.minhaResposta = null; }
       iniciarTick();
     } else {
       pararTick();
     }
-    /* som do modo só no host — participante fica em silêncio no anúncio */
     render();
   });
 
-  /* meu próprio placar — o host é quem calcula */
   on('jogadores/' + P.id, 'value', s => {
     const j = s.val();
     if(!j) return;
@@ -522,7 +586,6 @@ function ouvirJogo(){
       maiorSequencia: j.maiorSequencia || 0, acertos: j.acertos || 0,
       ultimoGanho: j.ultimoGanho || 0, ultimoAcerto: j.ultimoAcerto
     };
-    /* sons de acerto/erro só para o participante, uma vez por pergunta */
     if(P.fase === 'revelacao' && j.ultimoAcerto !== null && j.ultimoAcerto !== undefined && P.somDe !== P.indice){
       P.somDe = P.indice;
       playSound(P.eu.ultimoAcerto === true ? 'ok' : 'falha');
@@ -531,15 +594,28 @@ function ouvirJogo(){
     render();
   });
 
-  /* posição no ranking + quantidade de jogadores */
   on('jogadores','value', s => {
     const j = s.val() || {};
+    P.jogadoresSala = j;
     const lista = Object.entries(j).map(([id,v]) => ({ id, pontos:v.pontos||0 }))
       .sort((a,b)=> b.pontos - a.pontos);
     P.jogadores = lista.length;
     const idx = lista.findIndex(x => x.id === P.id);
     P.posicao = idx >= 0 ? idx + 1 : null;
     if(P.fase === 'ranking' || P.fase === 'fim' || P.fase === 'lobby') render();
+  });
+
+  on('ovadas','child_added', s => {
+    const ov = s.val();
+    if(!ov) return;
+    if(ov.vitima === P.id || ov.atribuidor === P.id){
+      P.fase = 'ovada';
+      render();
+      setTimeout(() => {
+        P.fase = 'ranking';
+        render();
+      }, 4000);
+    }
   });
 }
 
@@ -556,17 +632,15 @@ async function boot(){
 
   if(!P.pin || !db){ location.href = 'index.html'; return; }
 
-  /* retoma a sessão se o jogador ainda existir no jogo */
   if(salvo && salvo.pin === P.pin && salvo.id){
     try{
       const snap = await gameRef(P.pin, 'jogadores/' + salvo.id).get();
       if(snap.exists()){
         const j = snap.val();
-        P.id = salvo.id; P.apelido = j.apelido; P.personagem = j.personagem;
+        P.id = salvo.id; P.apelido = j.apelido; P.personagem = j.personagem; P.skin = j.skin;
         P.eu = { pontos:j.pontos||0, sequencia:j.sequencia||0, maiorSequencia:j.maiorSequencia||0,
                  acertos:j.acertos||0, ultimoGanho:j.ultimoGanho||0, ultimoAcerto:j.ultimoAcerto };
         P.etapa = 'espera'; P.resumed = true;
-        /* já respondeu esta pergunta? */
         const est = (await gameRef(P.pin,'estado').get()).val() || {};
         const idx = typeof est.indice === 'number' ? est.indice : 0;
         const r = await gameRef(P.pin, `respostas/${idx}/${P.id}`).get();
@@ -578,7 +652,6 @@ async function boot(){
     }catch(e){}
   }
 
-  /* jogo existe? */
   try{
     const meta = await gameRef(P.pin,'meta').get();
     if(!meta.exists()){ esquecer(); location.href = 'index.html'; return; }
@@ -586,6 +659,7 @@ async function boot(){
   }catch(e){ location.href = 'index.html'; return; }
 
   P.carIndex = Math.floor(Math.random() * PERSONAGENS.length);
+  P.skinIndex = 0;
   P.etapa = 'carrossel';
   render();
 }
