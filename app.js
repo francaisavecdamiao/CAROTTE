@@ -122,32 +122,33 @@ const REACOES = ['😂','🫠','😘','🥺','🥹','🤯','😵','😡','👻']
 
 /* ---------------------------------------------------------
    PERSONAGENS
-   retrato (.jpeg) no carrossel e no lobby
-   "com galo" (.png) no ranking e no pódio, recortado em círculo
+   retrato (.jpeg) = skin 0 (original); skins 1 e 2 ficam em
+   personagens/skin01/NOME02.jpeg e NOME03.jpeg
+   O mesmo retrato/skin aparece em lobby, ranking, pódio e reações.
    --------------------------------------------------------- */
 const PERSONAGENS = [
-  { nome:'Louise',    retrato:'personagens/LOUISE.jpeg',    galo:'personagens-com-galos/GALO1/LOUISE-GALO1.png' },
-  { nome:'Pierre',    retrato:'personagens/PIERRE.jpeg',    galo:'personagens-com-galos/GALO1/PIERRE-GALO1.png' },
-  { nome:'Sophie',    retrato:'personagens/SOPHIE.jpeg',    galo:'personagens-com-galos/GALO1/SOPHIE-GALO1.png' },
-  { nome:'Rémi',      retrato:'personagens/RÉMI.jpeg',      galo:'personagens-com-galos/GALO1/RÉMI-GALO1.png' },
-  { nome:'Cécile',    retrato:'personagens/CÉCILE.jpeg',    galo:'personagens-com-galos/GALO1/CÉCILE-GALO1.png' },
-  { nome:'Charlotte', retrato:'personagens/CHARLOTTE.jpeg', galo:'personagens-com-galos/GALO1/CHARLOTTE-GALO1.png' },
-  { nome:'Julien',    retrato:'personagens/JULIEN.jpeg',    galo:'personagens-com-galos/GALO1/JULIEN-GALO1.png' },
-  { nome:'François',  retrato:'personagens/FRANÇOIS.jpeg',  galo:'personagens-com-galos/GALO1/FRANÇOIS-GALO1.png' },
-  { nome:'Gaspard',   retrato:'personagens/GASPARD.jpeg',   galo:'personagens-com-galos/GALO1/GASPARD-GALO1.png' },
-  { nome:'Léo',       retrato:'personagens/LÉO.jpeg',       galo:'personagens-com-galos/GALO1/LEO-GALO1.png' },
-  { nome:'Adèle',     retrato:'personagens/ADÈLE.jpeg',     galo:'personagens-com-galos/GALO1/ADÈLE-GALO1.png' },
-  { nome:'Laurent',   retrato:'personagens/LAURENT.jpeg',   galo:'personagens-com-galos/GALO1/LAURENT-GALO1.png' },
-  { nome:'Bastien',   retrato:'personagens/BASTIEN.jpeg',   galo:'personagens-com-galos/GALO1/BASTIEN-GALO1.png' },
-  { nome:'Béatrice',  retrato:'personagens/BÉATRICE.jpeg',  galo:'personagens-com-galos/GALO1/BÉATRICE-GALO1.png' },
-  { nome:'Élise',     retrato:'personagens/ÉLISE.jpeg',     galo:'personagens-com-galos/GALO1/ÉLISE-GALO1.png' },
-  { nome:'Antoine',   retrato:'personagens/ANTOINE.jpeg',   galo:'personagens-com-galos/GALO1/ANTOINE-GALO1.png' },
-  { nome:'Julie',     retrato:'personagens/JULIE.jpeg',     galo:'personagens-com-galos/GALO1/JULIE-GALO1.png' },
-  { nome:'Marie',     retrato:'personagens/MARIE.jpeg',     galo:'personagens-com-galos/GALO1/MARIE-GALO1.png' },
-  { nome:'Florence',  retrato:'personagens/FLORENCE.jpeg',  galo:'personagens-com-galos/GALO1/FLORENCE-GALO1.png' },
-  { nome:'Valérie',   retrato:'personagens/VALÉRIE.jpeg',   galo:'personagens-com-galos/GALO1/VALÉRIE-GALO1.png' },
-  { nome:'Mathieu',   retrato:'personagens/MATHIEU.jpeg',   galo:'personagens-com-galos/GALO1/MATHIEU-GALO1.png' },
-  { nome:'Grégoire',  retrato:'personagens/GREGOIRE.jpeg',  galo:'personagens-com-galos/GALO1/GREGOIRE-GALO1.png' }
+  { nome:'Louise',    retrato:'personagens/LOUISE.jpeg' },
+  { nome:'Pierre',    retrato:'personagens/PIERRE.jpeg' },
+  { nome:'Sophie',    retrato:'personagens/SOPHIE.jpeg' },
+  { nome:'Rémi',      retrato:'personagens/RÉMI.jpeg' },
+  { nome:'Cécile',    retrato:'personagens/CÉCILE.jpeg' },
+  { nome:'Charlotte', retrato:'personagens/CHARLOTTE.jpeg' },
+  { nome:'Julien',    retrato:'personagens/JULIEN.jpeg' },
+  { nome:'François',  retrato:'personagens/FRANÇOIS.jpeg' },
+  { nome:'Gaspard',   retrato:'personagens/GASPARD.jpeg' },
+  { nome:'Léo',       retrato:'personagens/LÉO.jpeg' },
+  { nome:'Adèle',     retrato:'personagens/ADÈLE.jpeg' },
+  { nome:'Laurent',   retrato:'personagens/LAURENT.jpeg' },
+  { nome:'Bastien',   retrato:'personagens/BASTIEN.jpeg' },
+  { nome:'Béatrice',  retrato:'personagens/BÉATRICE.jpeg' },
+  { nome:'Élise',     retrato:'personagens/ÉLISE.jpeg' },
+  { nome:'Antoine',   retrato:'personagens/ANTOINE.jpeg' },
+  { nome:'Julie',     retrato:'personagens/JULIE.jpeg' },
+  { nome:'Marie',     retrato:'personagens/MARIE.jpeg' },
+  { nome:'Florence',  retrato:'personagens/FLORENCE.jpeg' },
+  { nome:'Valérie',   retrato:'personagens/VALÉRIE.jpeg' },
+  { nome:'Mathieu',   retrato:'personagens/MATHIEU.jpeg' },
+  { nome:'Grégoire',  retrato:'personagens/GREGOIRE.jpeg' }
 ];
 
 /* caminhos com acento precisam de encodeURI */
@@ -155,8 +156,21 @@ function charSrc(path){ return encodeURI(path); }
 function charByName(nome){
   return PERSONAGENS.find(p => p.nome === nome) || PERSONAGENS[0];
 }
-function retratoDe(nome){ return charSrc(charByName(nome).retrato); }
-function galoDe(nome){ return charSrc(charByName(nome).galo); }
+
+/* skins: 0 = original · 1 = NOME02 · 2 = NOME03 (pasta personagens/skin01) */
+const SKIN_SUFIXOS = ['', '02', '03'];
+const TOTAL_SKINS = SKIN_SUFIXOS.length;
+function skinPath(p, skin){
+  const s = Math.max(0, Math.min(TOTAL_SKINS - 1, Number(skin) || 0));
+  if(!s) return p.retrato;
+  return p.retrato
+    .replace('personagens/', 'personagens/skin01/')
+    .replace('.jpeg', SKIN_SUFIXOS[s] + '.jpeg');
+}
+function retratoDe(nome, skin){ return charSrc(skinPath(charByName(nome), skin)); }
+
+/* apelido: 2 a 14 caracteres, sem espaços */
+const APELIDO_MAX = 14;
 
 /* ---------------------------------------------------------
    PERSISTÊNCIA (localStorage)
