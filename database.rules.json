@@ -8,12 +8,13 @@
         "perguntas":  { ".write": true },
         "estado":     { ".write": true },
         "resultados": { ".write": true },
+        "ovadas":     { ".write": true },
 
         "jogadores": {
           ".write": true,
           "$id": {
             ".validate": "!newData.exists() || newData.hasChildren(['apelido','personagem'])",
-            "apelido": { ".validate": "newData.isString() && newData.val().length >= 2 && newData.val().length <= 18" },
+            "apelido": { ".validate": "newData.isString() && newData.val().length >= 2 && newData.val().length <= 14 && !newData.val().contains(' ')" },
             "pontos":  { ".validate": "newData.isNumber() && newData.val() >= 0" }
           }
         },
