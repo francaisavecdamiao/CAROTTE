@@ -701,3 +701,21 @@ body.host.fase-ranking #reacoes-host{ display:block; }
   .ov-circulo.ov-grande{ width:210px; height:210px; }
   .ov-titulo{ font-size:36px; }
 }
+
+/* ---------- OVADA · suspense na escolha do alvo ---------- */
+.ov-misterio{
+  width:100%; height:100%; display:flex; align-items:center; justify-content:center;
+  background:var(--azul-dark); color:#fff !important; -webkit-text-fill-color:#fff;
+  font-family:'Feather Bold','Nunito',sans-serif; font-size:130px;
+}
+.ov-circulo.ov-suspense{ border-color:var(--laranja-escuro); animation:ovTreme .4s ease-in-out infinite; }
+@keyframes ovTreme{
+  0%,100%{ transform:translateX(0) rotate(0deg); }
+  25%{ transform:translateX(-6px) rotate(-2deg); }
+  75%{ transform:translateX(6px) rotate(2deg); }
+}
+.ov-circulo.ov-revela{ animation:ovRevela .6s cubic-bezier(.34,1.56,.64,1); }
+@keyframes ovRevela{
+  from{ transform:scale(.6); filter:brightness(2.2); }
+  to{ transform:scale(1); filter:none; }
+}
