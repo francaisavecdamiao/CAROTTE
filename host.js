@@ -22,7 +22,9 @@ const H = {
   aba:'ranking',
   resumed:false,
   travaRevelacao:false,
-  prevTop5:[]          // ordem do ranking anterior, para animar quem ultrapassou quem
+  prevTop5:[],         // ordem do ranking anterior, para animar quem ultrapassou quem
+  ovadaAtiva:false,    // true enquanto as ovadas do ranking estão rolando
+  ovadaTok:0           // invalida ovadas em andamento (reinício / próxima pergunta)
 };
 
 let hostListeners = [];
@@ -52,7 +54,7 @@ function apagarJogo(){
   try{
     gameRef(H.pin).update({
       meta:null, perguntas:null, estado:null,
-      jogadores:null, respostas:null, resultados:null, reacoes:null
+      jogadores:null, respostas:null, resultados:null, reacoes:null, ovadas:null
     });
   }catch(e){}
 }
@@ -373,7 +375,7 @@ function linkDoJogador(){
 function telaLobby(){
   const lista = Object.entries(H.jogadores).map(([id,j])=>`
     <div class="player-chip">
-      <img src="${retratoDe(j.personagem)}" alt="${esc(j.apelido)}" onerror="this.onerror=null;this.src=avatarFallback('${jsStr(j.personagem||'')}')">
+      <img src="${retratoDe(j.personagem, j.skin)}" alt="${esc(j.apelido)}" onerror="this.onerror=null;this.src=avatarFallback('${jsStr(j.personagem||'')}')">
       <span class="player-name">${esc(j.apelido)}</span>
     </div>`).join('');
   const n = Object.keys(H.jogadores).length;
@@ -417,6 +419,7 @@ function desenharQR(){
    ========================================================= */
 function pararTudo(){
   pararReacoes();
+  H.ovadaTok++; H.ovadaAtiva = false; fecharOverlayOvada(true);
   if(faseTimer){ clearTimeout(faseTimer); faseTimer = null; }
   if(tickTimer){ clearInterval(tickTimer); tickTimer = null; }
 }
@@ -546,6 +549,8 @@ async function revelar(){
     updates[`jogadores/${id}/acertos`] = acertosTot;
     updates[`jogadores/${id}/ultimoGanho`] = ganho;
     updates[`jogadores/${id}/ultimoAcerto`] = acertou;
+    /* a cada 5 acertos seguidos (5, 10, 15…) o jogador ganha uma ovada */
+    if(acertou && sequencia % 5 === 0) updates[`jogadores/${id}/ovadaDisponivel`] = true;
 
     detalhes[id] = {
       apelido:j.apelido, personagem:j.personagem,
@@ -571,10 +576,16 @@ async function revelar(){
 async function mostrarRanking(){
   playSound('click');
   H.fase = 'ranking';
+  H.ovadaAtiva = haOvadasPendentes();
   ouvirReacoes(H.indice);
   await escrever({ fase:'ranking', indice:H.indice, total:H.quiz.perguntas.length });
   playSound('level');
   render();
+  if(H.ovadaAtiva){
+    const idx = H.indice;
+    /* deixa a animação normal do ranking terminar antes das ovadas */
+    faseTimer = setTimeout(()=>processarOvadas(idx), 2800);
+  }
 }
 
 function proximaPergunta(){
@@ -736,8 +747,8 @@ function blocoRanking(){
     return `
       <div class="rank-row" data-id="${esc(j.id)}" data-personagem="${esc(j.personagem||'')}">
         <span class="chip-num">${i+1}</span>
-        <img src="${galoDe(j.personagem)}" alt="${esc(j.apelido)}" decoding="sync" onerror="this.onerror=null;this.src=avatarFallback('${jsStr(j.personagem||'')}')">
-        <span class="rank-name">${esc(j.apelido)}</span>
+        <img src="${retratoDe(j.personagem, j.skin)}" alt="${esc(j.apelido)}" decoding="sync" onerror="this.onerror=null;this.src=avatarFallback('${jsStr(j.personagem||'')}')">
+        <span class="rank-name">${esc(j.apelido)}${j.ovadaDisponivel ? ' <span class="rank-ovo" title="tem uma ovada">🥚</span>' : ''}</span>
         <span class="rank-gain ${cls}">${g>0?'+':''}${formatScore(g)}</span>
         <span class="rank-pts">${formatScore(j.pontos||0)}</span>
       </div>`;
@@ -746,7 +757,7 @@ function blocoRanking(){
   const fogo = lista.slice().sort((a,b)=>(b.sequencia||0)-(a.sequencia||0))[0];
   const destaque = (fogo && (fogo.sequencia||0) >= 2) ? `
     <div class="streak-card">
-      <img src="${galoDe(fogo.personagem)}" alt="" onerror="this.style.display='none'">
+      <img src="${retratoDe(fogo.personagem, fogo.skin)}" alt="" onerror="this.style.display='none'">
       <div class="streak-text">
         <strong>🔥 ${fogo.sequencia} acertos seguidos</strong>
         ${esc(fogo.apelido)} · ${esc(fogo.personagem)} está embalado!
@@ -765,7 +776,7 @@ function blocoRanking(){
       ${destaque}
     </div>
     <div class="footer-space"></div>
-    <button class="btn btn-block" onclick="proximaPergunta()">${ultima ? 'ver o pódio' : 'próxima pergunta'}</button>`;
+    <button class="btn btn-block" onclick="proximaPergunta()" ${H.ovadaAtiva ? 'disabled' : ''}>${H.ovadaAtiva ? 'ovada em andamento…' : (ultima ? 'ver o pódio' : 'próxima pergunta')}</button>`;
 }
 
 /* =========================================================
@@ -775,7 +786,7 @@ function telaPodio(){
   const lista = listaOrdenada();
   const col = (j,pos) => j ? `
     <div class="podium-col podium-${pos}">
-      <img src="${galoDe(j.personagem)}" alt="" onerror="this.style.display='none'">
+      <img src="${retratoDe(j.personagem, j.skin)}" alt="" onerror="this.style.display='none'">
       <span class="podium-name">${esc(j.apelido)}</span>
       <span class="podium-pts">${formatScore(j.pontos||0)} pts</span>
       <div class="podium-block"><span class="podium-place">${pos}º</span></div>
@@ -1015,7 +1026,7 @@ function dispararReacao(id, emoji){
   const ator = document.createElement('div');
   ator.className = 'rx-ator';
   ator.style.left = (8 + Math.random()*100) + 'px';
-  ator.innerHTML = `<img src="${galoDe(pers)}" alt="" onerror="this.onerror=null;this.src=avatarFallback('${jsStr(pers)}')"><span class="rx-nome">${esc(j.apelido||'')}</span>`;
+  ator.innerHTML = `<img src="${retratoDe(pers, j.skin)}" alt="" onerror="this.onerror=null;this.src=avatarFallback('${jsStr(pers)}')"><span class="rx-nome">${esc(j.apelido||'')}</span>`;
   lado.appendChild(ator);
   const t0 = performance.now();
   const spawn = setInterval(()=>{
@@ -1030,6 +1041,195 @@ function dispararReacao(id, emoji){
     setTimeout(()=>e.remove(), 850);
   }, 130);
   setTimeout(()=>{ clearInterval(spawn); ator.remove(); }, 3000);
+}
+
+/* =========================================================
+   OVADA — 5 acertos seguidos dão direito a uma ovada
+   Fluxo (no ranking parcial, uma ovada por vez):
+   1. o host avisa em estado.ovadaPor quem vai atirar
+   2. o aparelho do atirador lista os outros participantes
+   3. a escolha chega em ovadas/<pergunta>/<atirador> = { alvo }
+   4. na tela do host o ovo rola da esquerda até cobrir o alvo (~4s)
+   5. o alvo perde 300 pontos e o ranking anima as trocas de lugar
+   ========================================================= */
+const OVADA_PERDA = 300;
+const OVADA_ESPERA_MS = 20000;
+const dormir = ms => new Promise(r => setTimeout(r, ms));
+let ovadaSpawn = null;
+
+const OVO_SVG = `<svg viewBox="0 0 100 130" aria-hidden="true"><path d="M50 4C25 4 8 55 8 85c0 25 19 41 42 41s42-16 42-41C92 55 75 4 50 4z" fill="#FFF7E6" stroke="#E3C998" stroke-width="4"/><ellipse cx="34" cy="48" rx="9" ry="16" fill="#ffffff" opacity=".75" transform="rotate(20 34 48)"/></svg>`;
+
+function haOvadasPendentes(){
+  const js = Object.values(H.jogadores);
+  return js.length >= 2 && js.some(j => j.ovadaDisponivel);
+}
+
+/* reaproveita a animação FLIP do ranking: compara com a ordem anterior */
+function reanimarRanking(){
+  if(H.tela !== 'jogo' || H.fase !== 'ranking') return;
+  H._rankAnimKey = null;
+  animarRanking();
+}
+
+function circuloOvada(j){
+  return `<img src="${retratoDe(j.personagem, j.skin)}" alt="" onerror="this.onerror=null;this.src=avatarFallback('${jsStr(j.personagem||'')}')">
+    <div class="ov-faixa"><strong>${esc(j.apelido)}</strong><small>${esc(j.personagem||'')}</small></div>`;
+}
+
+function abrirOverlayOvada(j){
+  fecharOverlayOvada(true);
+  const o = document.createElement('div');
+  o.id = 'ovada-host';
+  o.innerHTML = `
+    <div class="ov-ovos"></div>
+    <p class="ov-titulo">🥚 ovada!</p>
+    <p class="ov-sub">${esc(j.apelido)} está escolhendo quem vai levar…</p>
+    <div class="ov-cena">
+      <div class="ov-circulo ov-esq">${circuloOvada(j)}</div>
+      <div class="ov-circulo ov-dir ov-oculto"></div>
+    </div>
+    <div class="ov-ovo">${OVO_SVG}</div>
+    <div class="ov-resultado"></div>`;
+  document.body.appendChild(o);
+  ovadaSpawn = setInterval(soltarOvoFundo, 140);
+  return o;
+}
+
+/* ovos atravessando a tela da esquerda para a direita */
+function soltarOvoFundo(){
+  const box = document.querySelector('#ovada-host .ov-ovos');
+  if(!box) return;
+  const e = document.createElement('span');
+  e.className = 'ov-ovinho';
+  e.textContent = '🥚';
+  const dur = 2.2 + Math.random()*2.4;
+  e.style.top = (Math.random()*92) + '%';
+  e.style.fontSize = (24 + Math.random()*34) + 'px';
+  e.style.animationDuration = dur + 's';
+  box.appendChild(e);
+  setTimeout(()=>e.remove(), dur*1000 + 100);
+}
+
+function fecharOverlayOvada(imediato){
+  if(ovadaSpawn){ clearInterval(ovadaSpawn); ovadaSpawn = null; }
+  const o = document.getElementById('ovada-host');
+  if(!o) return;
+  if(imediato){ o.remove(); return; }
+  o.classList.add('saindo');
+  setTimeout(()=>o.remove(), 350);
+}
+
+/* espera o atirador escolher (ou o tempo acabar) */
+function esperarEscolha(id, indice, ms){
+  return new Promise(res => {
+    const ref = gameRef(H.pin, `ovadas/${indice}/${id}`);
+    let feito = false, t = null;
+    const cb = s => { const v = s.val(); if(v && v.alvo) fim(v.alvo); };
+    const fim = v => {
+      if(feito) return; feito = true;
+      clearTimeout(t);
+      try{ ref.off('value', cb); }catch(e){}
+      res(v);
+    };
+    t = setTimeout(()=>fim(null), ms);
+    ref.on('value', cb);
+  });
+}
+
+/* o ovo nasce no círculo da esquerda, cresce e rola até cobrir o da direita (4s) */
+function rolarOvo(ov){
+  return new Promise(res => {
+    const ovo = ov.querySelector('.ov-ovo');
+    const a = ov.querySelector('.ov-esq').getBoundingClientRect();
+    const b = ov.querySelector('.ov-dir').getBoundingClientRect();
+    const ax = a.left + a.width/2, ay = a.top + a.height/2;
+    const bx = b.left + b.width/2, by = b.top + b.height/2;
+    const fim = (b.width * 1.25) / 84;   /* 84 = parte mais larga do ovo no svg */
+    ovo.style.display = 'block';
+    const anim = ovo.animate([
+      { transform:`translate(${ax-50}px,${ay-65}px) scale(.3) rotate(0deg)` },
+      { transform:`translate(${bx-50}px,${by-65}px) scale(${fim}) rotate(1080deg)` }
+    ], { duration:4000, easing:'ease-in', fill:'forwards' });
+    anim.onfinish = () => res();
+    anim.oncancel = () => res();
+  });
+}
+
+async function executarOvada(id, indice, tok){
+  const lanc = H.jogadores[id];
+  if(!lanc) return;
+  const ov = abrirOverlayOvada(lanc);
+  playSound('modo');
+  await escrever({ fase:'ranking', indice, total:H.quiz.perguntas.length, ovadaPor:id });
+
+  const alvoId = await esperarEscolha(id, indice, OVADA_ESPERA_MS);
+  if(tok !== H.ovadaTok) return;
+
+  const alvo = (alvoId && alvoId !== id) ? H.jogadores[alvoId] : null;
+  if(!alvo){
+    ov.querySelector('.ov-sub').textContent = 'sem escolha — a ovada fica guardada para o próximo ranking';
+    await dormir(1800);
+    if(tok !== H.ovadaTok) return;
+    fecharOverlayOvada(false);
+    await dormir(380);
+    return;
+  }
+
+  /* o círculo do alvo surge à direita */
+  const dir = ov.querySelector('.ov-dir');
+  dir.innerHTML = circuloOvada(alvo);
+  dir.classList.remove('ov-oculto');
+  ov.querySelector('.ov-sub').textContent = `${lanc.apelido} escolheu ${alvo.apelido}!`;
+  await dormir(1100);
+  if(tok !== H.ovadaTok) return;
+
+  await rolarOvo(ov);
+  if(tok !== H.ovadaTok) return;
+  await dormir(250);
+  if(tok !== H.ovadaTok) return;
+
+  /* aplica a perda de pontos */
+  const antes = Math.max(0, Number(alvo.pontos) || 0);
+  const perda = Math.min(OVADA_PERDA, antes);
+  const upd = {};
+  upd[`jogadores/${alvoId}/pontos`] = Math.max(0, antes - OVADA_PERDA);
+  upd[`jogadores/${alvoId}/ovadasRecebidas`] = (alvo.ovadasRecebidas || 0) + 1;
+  upd[`jogadores/${id}/ovadaDisponivel`] = false;
+  upd[`jogadores/${id}/ovadasFeitas`] = (lanc.ovadasFeitas || 0) + 1;
+  try{ await gameRef(H.pin).update(upd); }catch(e){}
+  if(tok !== H.ovadaTok) return;
+
+  /* resultado: o alvo e quanto perdeu */
+  playSound('falha');
+  ov.querySelector('.ov-resultado').innerHTML = `
+    <div class="ov-circulo ov-grande">${circuloOvada(alvo)}<span class="ov-respingo">🍳</span></div>
+    <p class="ov-nome">${esc(alvo.apelido)} levou uma ovada!</p>
+    <p class="ov-perda">${perda > 0 ? '−' + formatScore(perda) + ' pontos' : 'sem pontos para perder'}</p>`;
+  ov.classList.add('resultado');
+  await dormir(3000);
+  if(tok !== H.ovadaTok) return;
+
+  /* volta ao ranking e anima quem perdeu colocação */
+  fecharOverlayOvada(false);
+  await dormir(380);
+  if(tok !== H.ovadaTok) return;
+  reanimarRanking();
+  await dormir(1000);
+}
+
+async function processarOvadas(indice){
+  const tok = H.ovadaTok;
+  const ids = listaOrdenada().filter(j => j.ovadaDisponivel).map(j => j.id);
+  for(const id of ids){
+    if(tok !== H.ovadaTok || H.fase !== 'ranking' || H.indice !== indice) return;
+    if(Object.keys(H.jogadores).length < 2) break;
+    await executarOvada(id, indice, tok);
+    if(tok !== H.ovadaTok) return;
+    await escrever({ fase:'ranking', indice, total:H.quiz.perguntas.length });
+  }
+  if(tok !== H.ovadaTok) return;
+  H.ovadaAtiva = false;
+  render();
 }
 
 /* =========================================================
