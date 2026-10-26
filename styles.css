@@ -608,3 +608,96 @@ body.host.fase-ranking #reacoes-host{ display:block; }
   15%{ opacity:1; }
   100%{ opacity:0; transform:translate(calc(-50% + var(--dx,0px)), var(--dy,-200px)) scale(1.15); }
 }
+
+/* ---------- SKINS (tela do apelido) ---------- */
+.skin-row{ display:flex; gap:12px; justify-content:center; width:100%; margin:2px 0 16px; }
+.skin-opt{
+  width:72px; height:72px; padding:0; flex-shrink:0; overflow:hidden; cursor:pointer;
+  border:3px solid var(--border); border-radius:50%; background:#fff;
+  transition:transform .1s ease, border-color .2s ease, box-shadow .2s ease;
+}
+.skin-opt img{ width:100%; height:100%; object-fit:cover; display:block; }
+.skin-opt.on{ border-color:var(--laranja-escuro); box-shadow:0 0 0 3px rgba(242,164,68,.45); transform:scale(1.08); }
+.skin-opt:active{ transform:scale(.94); }
+
+/* ---------- OVADA · participante ---------- */
+.ovada-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:10px; width:100%; }
+.ovada-alvo{
+  display:flex; align-items:center; gap:10px; min-width:0;
+  background:#fff; border:2px solid var(--amarelo); border-bottom-width:4px;
+  border-radius:var(--radius-md); padding:8px 10px; cursor:pointer; text-align:left;
+  font-family:'Feather Bold','Nunito',sans-serif; font-size:15px; color:var(--text);
+}
+.ovada-alvo img{ width:44px; height:44px; border-radius:50%; object-fit:cover; border:2px solid var(--amarelo); flex-shrink:0; }
+.ovada-alvo span{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ovada-alvo:active{ transform:translateY(3px); }
+.ovada-aviso{
+  font-size:13px; font-weight:700; color:var(--laranja-escuro); line-height:1.4;
+  background:#FFF5EA; border:2px solid var(--amarelo); border-radius:var(--radius-md);
+  padding:8px 12px; margin:6px 0 0;
+}
+.rank-ovo{ font-size:16px; }
+
+/* ---------- OVADA · tela do host ---------- */
+#ovada-host{
+  position:fixed; inset:0; z-index:60; overflow:hidden;
+  background:rgba(247,249,250,.95);
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px;
+  animation:ovEntra .3s ease;
+}
+#ovada-host.saindo{ opacity:0; transition:opacity .35s ease; }
+@keyframes ovEntra{ from{ opacity:0; } to{ opacity:1; } }
+.ov-ovos{ position:absolute; inset:0; pointer-events:none; overflow:hidden; }
+.ov-ovinho{ position:absolute; left:-80px; line-height:1; opacity:.9; animation:ovVoa 3s linear forwards; }
+@keyframes ovVoa{
+  from{ transform:translateX(0) rotate(0deg); }
+  to{ transform:translateX(calc(100vw + 160px)) rotate(720deg); }
+}
+.ov-titulo{
+  position:relative; z-index:2; margin:0; text-transform:lowercase;
+  font-family:'Feather Bold','Nunito',sans-serif; font-size:46px; color:var(--laranja-escuro);
+}
+.ov-sub{
+  position:relative; z-index:2; margin:0; font-size:20px; font-weight:800; color:var(--text);
+  text-align:center; padding:0 20px;
+}
+.ov-cena{
+  position:relative; z-index:2; width:min(1000px,92vw); margin-top:18px;
+  display:flex; justify-content:space-between; align-items:center; padding:0 3vw;
+}
+.ov-circulo{
+  position:relative; width:220px; height:220px; border-radius:50%; overflow:hidden;
+  border:5px solid var(--amarelo); background:#fff; box-shadow:0 10px 24px rgba(0,0,0,.18);
+}
+.ov-circulo img{ width:100%; height:100%; object-fit:cover; display:block; }
+.ov-faixa{
+  position:absolute; left:0; right:0; bottom:0; padding:22px 8px 12px;
+  background:linear-gradient(transparent, rgba(0,0,0,.7)); color:#fff; text-align:center;
+  display:flex; flex-direction:column; gap:1px;
+}
+.ov-faixa strong{ font-family:'Feather Bold','Nunito',sans-serif; font-size:22px; font-weight:normal; }
+.ov-faixa small{ font-size:13px; opacity:.9; }
+.ov-circulo.ov-dir{ transition:opacity .4s ease, transform .55s cubic-bezier(.34,1.56,.64,1); }
+.ov-oculto{ opacity:0; transform:scale(.4); }
+.ov-ovo{
+  position:fixed; left:0; top:0; width:100px; height:130px; z-index:5;
+  pointer-events:none; display:none; transform-origin:50% 50%; transition:opacity .35s ease;
+}
+.ov-ovo svg{ width:100%; height:100%; display:block; }
+.ov-resultado{
+  display:none; position:relative; z-index:6; flex-direction:column; align-items:center; gap:10px;
+  text-align:center; animation:popIn .4s ease;
+}
+#ovada-host.resultado .ov-resultado{ display:flex; }
+#ovada-host.resultado .ov-cena,
+#ovada-host.resultado .ov-ovo,
+#ovada-host.resultado .ov-sub{ display:none !important; }
+.ov-circulo.ov-grande{ width:260px; height:260px; }
+.ov-respingo{ position:absolute; right:10px; top:10px; font-size:64px; line-height:1; transform:rotate(12deg); }
+.ov-nome{ margin:0; font-family:'Feather Bold','Nunito',sans-serif; font-size:34px; color:var(--text); }
+.ov-perda{ margin:0; font-family:'Feather Bold','Nunito',sans-serif; font-size:52px; color:var(--vermelho); }
+@media (max-height:700px){
+  .ov-circulo{ width:170px; height:170px; }
+  .ov-circulo.ov-grande{ width:210px; height:210px; }
+  .ov-titulo{ font-size:36px; }
+}
