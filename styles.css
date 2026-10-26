@@ -31,6 +31,7 @@ html{ color-scheme: light only; }
   --green-correct:#48B832;
   --green-correct-dark:#379425;
 
+  /* tons escuros das formas (mesma família de cada cor) */
   --rosa-dark:#D98289;
   --amarelo-dark:#D98B2B;
   --azul-shape-dark:#6FA3AB;
@@ -72,6 +73,9 @@ h1,h2,.level-label,.score-badge,.btn,.chip-num,.chip-pts,.final-score,
   box-shadow:0 0 40px rgba(0,0,0,0.06);
 }
 
+/* ---------- HOST: mesma linguagem, tela larga ---------- */
+/* nas telas ao vivo (lobby · jogo · pódio) tudo cabe na tela, sem
+   precisar rolar — só o editor e o relatório continuam roláveis */
 body.host{ height:100dvh; overflow:hidden; }
 body.host.scroll-ok{ height:auto; min-height:100dvh; overflow:visible; }
 body.host #page{ max-width:1200px; box-shadow:none; height:100dvh; overflow:hidden; }
@@ -99,16 +103,19 @@ body.host .podium-3 .podium-block{ height:68px; }
 body.host .host-option{ font-size:19px; padding:13px 16px; }
 body.host .host-option svg{ width:30px; height:30px; }
 
+/* contêiner que a tela do host reduz para caber inteiro (ver host.js › ajustarEscala) */
 #fit{ display:flex; flex-direction:column; gap:12px; flex:1; min-height:0; width:100%; transform-origin:top left; }
 #fit > *{ flex-shrink:0; }
 body.host.scroll-ok #fit{ flex:none; }
 
+/* ranking parcial no host: laterais livres para as reações com emoji */
 body.host.fase-ranking #page{ max-width:none; }
 body.host.fase-ranking main#content{
   padding-left:max(210px, calc((100vw - 900px) / 2));
   padding-right:max(210px, calc((100vw - 900px) / 2));
 }
 
+/* ---------- TOPBAR ---------- */
 #topbar{
   position:sticky; top:0; z-index:10;
   background:var(--card);
@@ -167,6 +174,7 @@ main#content{
   display:flex; flex-direction:column; gap:16px;
 }
 
+/* ---------- TEXTO BRANCO GARANTIDO ---------- */
 .btn,.option-card,.chip-option,.shape-btn,.chip-num,
 .option-card.selected,.chip-option.selected,
 .option-card.correct,.chip-option.correct,
@@ -199,6 +207,7 @@ main#content{
 
 .footer-space{ flex:1; }
 
+/* ---------- CARDS ---------- */
 .home-card{
   background:var(--card); border:2px solid var(--border);
   border-radius:var(--radius-lg); padding:26px 20px;
@@ -306,6 +315,7 @@ body.host .fr-sentence{ line-height:1.35; }
 .gabarito.ok{ color:var(--green-correct-dark); background:#EFFAEC; }
 .gabarito ul{ margin:6px 0 0; padding-left:18px; text-align:left; }
 
+/* ---------- FORMAS (4 botões de resposta) ---------- */
 .shapes-grid{
   display:grid; grid-template-columns:1fr 1fr; gap:12px; width:100%;
 }
@@ -327,6 +337,7 @@ body.host .fr-sentence{ line-height:1.35; }
 .shape-qua{ background:var(--rosa); box-shadow:0 6px 0 var(--rosa-dark); }
 .shape-btn.correct{ background:var(--green-correct); box-shadow:0 6px 0 var(--green-correct-dark); }
 
+/* host: pergunta com forma + texto da opção */
 .host-options{ display:grid; grid-template-columns:1fr 1fr; gap:14px; width:100%; margin-top:6px; }
 .host-option{
   display:flex; align-items:center; gap:14px;
@@ -338,6 +349,7 @@ body.host .fr-sentence{ line-height:1.35; }
 .host-option.dim{ opacity:.3; }
 .host-option.correct{ background:var(--green-correct) !important; box-shadow:0 6px 0 var(--green-correct-dark) !important; }
 
+/* barras de distribuição */
 .bar-row{ display:flex; align-items:center; gap:12px; width:100%; margin-bottom:10px; }
 .bar-shape{ width:34px; height:34px; flex-shrink:0; border-radius:8px; display:flex; align-items:center; justify-content:center; }
 .bar-shape svg{ width:20px; height:20px; }
@@ -345,6 +357,7 @@ body.host .fr-sentence{ line-height:1.35; }
 .bar-fill{ height:100%; border-radius:999px; transition:width .5s ease; }
 .bar-count{ font-weight:800; font-size:16px; min-width:46px; text-align:right; color:var(--text-light); }
 
+/* ---------- PIN / QR ---------- */
 .pin-big{
   font-size:64px; letter-spacing:8px; color:var(--laranja-escuro);
   background:#FFF5EA; border:3px solid var(--amarelo);
@@ -373,6 +386,7 @@ body.host .fr-sentence{ line-height:1.35; }
 .player-name{ font-size:14px; color:var(--text); }
 .lobby-split{ display:flex; gap:26px; align-items:center; justify-content:center; flex-wrap:wrap; width:100%; }
 
+/* ---------- ANÚNCIO / CONTAGEM ---------- */
 .count-num{ font-size:96px; color:var(--laranja-escuro); margin:10px 0; animation:popIn .3s ease; }
 .big-num{ font-size:56px; color:var(--laranja-escuro); margin:4px 0; }
 .mode-selo{
@@ -396,6 +410,7 @@ body.host .mode-selo{ font-size:24px; padding:12px 28px; gap:10px; }
 .timer-num{ font-size:30px; color:var(--laranja-escuro); }
 .timer-num.alerta{ color:var(--vermelho); animation:pulse 1s infinite; }
 
+/* ---------- RANKING / PÓDIO ---------- */
 .rank-list{ width:100%; display:flex; flex-direction:column; gap:10px; position:relative; }
 .rank-row{
   display:flex; align-items:center; gap:14px;
@@ -439,6 +454,7 @@ body.host .mode-selo{ font-size:24px; padding:12px 28px; gap:10px; }
 .podium-name{ font-size:19px; color:var(--text); }
 .podium-pts{ font-size:17px; color:var(--laranja-escuro); }
 
+/* ---------- CARROSSEL DE PERSONAGENS ---------- */
 .carousel{
   width:100%; display:flex; align-items:center; justify-content:center; gap:6px;
   margin:6px 0 4px; user-select:none; touch-action:pan-y;
@@ -475,6 +491,7 @@ body.host .mode-selo{ font-size:24px; padding:12px 28px; gap:10px; }
   color:var(--text-light); margin:0 0 6px; width:100%; text-align:left;
 }
 
+/* ---------- EDITOR DO HOST ---------- */
 .editor-list{ width:100%; display:flex; flex-direction:column; gap:14px; }
 .q-card{
   background:var(--card); border:2px solid var(--border);
@@ -517,6 +534,7 @@ body.host .mode-selo{ font-size:24px; padding:12px 28px; gap:10px; }
 }
 .file-drop:hover{ border-color:var(--amarelo); }
 
+/* ---------- TABELA DO RELATÓRIO ---------- */
 .table-wrap{ width:100%; overflow-x:auto; border:2px solid var(--border); border-radius:var(--radius-md); background:#fff; }
 table.rep{ border-collapse:collapse; width:100%; font-size:13px; }
 table.rep th,table.rep td{ padding:9px 12px; text-align:left; border-bottom:1px solid var(--border); white-space:nowrap; }
@@ -542,6 +560,8 @@ table.rep tr:last-child td{ border-bottom:none; }
   .podium-col img{ width:84px; height:84px; }
 }
 
+/* ---------- REAÇÕES COM EMOJI ---------- */
+/* participante: grade 3×3 no ranking parcial */
 .emoji-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:10px; width:100%; margin:4px 0 6px; }
 .emoji-btn{
   font-size:34px; line-height:1; padding:10px 0; cursor:pointer;
@@ -553,6 +573,7 @@ table.rep tr:last-child td{ border-bottom:none; }
 .emoji-btn.dim{ opacity:.3; }
 .emoji-btn.on{ background:#FFF5EA; border-color:var(--laranja-escuro); transform:scale(1.06); }
 
+/* host: personagem sobre o galo nas laterais, emojis subindo */
 #reacoes-host{
   display:none; position:fixed; left:0; right:0; bottom:0; height:62vh;
   pointer-events:none; z-index:30;
@@ -587,30 +608,3 @@ body.host.fase-ranking #reacoes-host{ display:block; }
   15%{ opacity:1; }
   100%{ opacity:0; transform:translate(calc(-50% + var(--dx,0px)), var(--dy,-200px)) scale(1.15); }
 }
-
-/* Estilos da Ovada */
-.ovada-alvos-grid{
-  display:grid; grid-template-columns:repeat(auto-fill, minmax(110px, 1fr)); gap:10px; width:100%; margin-top:12px;
-}
-.ovada-alvo-chip{
-  background:var(--bg); border:2px solid var(--border); border-radius:var(--radius-md);
-  padding:10px; display:flex; flex-direction:column; align-items:center; gap:6px; cursor:pointer;
-  transition:transform .1s ease, border-color .2s ease;
-}
-.ovada-alvo-chip:hover{ border-color:var(--amarelo); transform:scale(1.04); }
-.ovada-alvo-chip img{ width:54px; height:54px; border-radius:50%; object-fit:cover; border:2px solid var(--amarelo); }
-.ovada-alvo-chip span{ font-size:13px; font-weight:700; text-align:center; overflow:hidden; text-overflow:ellipsis; width:100%; white-space:nowrap; }
-
-.ovada-arena{
-  display:flex; align-items:center; justify-content:space-between; width:100%; max-width:600px; margin:20px auto; position:relative;
-}
-.ovada-lado-esq, .ovada-lado-dir{
-  display:flex; flex-direction:column; align-items:center; gap:8px; width:120px;
-}
-.ovada-lado-esq img, .ovada-lado-dir img{
-  width:90px; height:90px; border-radius:50%; object-fit:cover; border:3px solid var(--amarelo); background:#fff;
-}
-.ovada-nick{ font-family:'Feather Bold','Nunito',sans-serif; font-size:16px; color:var(--text); }
-.ovada-perdeu{ font-family:'Feather Bold','Nunito',sans-serif; font-size:14px; color:var(--vermelho); background:#FDF0F0; border-radius:999px; padding:2px 8px; }
-.ovada-centro{ flex:1; display:flex; align-items:center; justify-content:center; position:relative; height:100px; }
-.ovo-animado{ font-size:40px; position:absolute; left:0; transform:translateX(0) scale(1); }
