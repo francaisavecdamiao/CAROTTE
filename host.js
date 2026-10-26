@@ -12,7 +12,7 @@ const H = {
   pin:null,
   quiz:{ titulo:'', descricao:'', perguntas:[] },
   mostrarNoAparelho:false,
-  fase:'lobby',        // lobby | anuncio | pergunta | revelacao | ranking | ovada | fim
+  fase:'lobby',        // lobby | anuncio | pergunta | revelacao | ranking | fim
   indice:0,
   inicioEm:0, fimEm:0,
   jogadores:{},        // id -> dados
@@ -22,8 +22,7 @@ const H = {
   aba:'ranking',
   resumed:false,
   travaRevelacao:false,
-  prevTop5:[],         // ordem do ranking anterior, para animar quem ultrapassou quem
-  ovadaAtiva:null      // dados da ovada em andamento para exibir na tela do host
+  prevTop5:[]          // ordem do ranking anterior, para animar quem ultrapassou quem
 };
 
 let hostListeners = [];
@@ -53,7 +52,7 @@ function apagarJogo(){
   try{
     gameRef(H.pin).update({
       meta:null, perguntas:null, estado:null,
-      jogadores:null, respostas:null, resultados:null, reacoes:null, ovadas:null
+      jogadores:null, respostas:null, resultados:null, reacoes:null
     });
   }catch(e){}
 }
@@ -79,6 +78,7 @@ function render(){
     case 'relatorio': html = telaRelatorio(); break;
     default:          html = telaAbertura();
   }
+  /* #fit é o contêiner que se reduz para caber inteiro na tela do host */
   c.innerHTML = `<div id="fit">${html}</div>`;
   if(H.tela === 'lobby') desenharQR();
   if(noRanking) animarRanking();
@@ -86,6 +86,11 @@ function render(){
   salvarHost();
 }
 
+/* ---------------------------------------------------------
+   AJUSTE À TELA — se o conteúdo passar da altura disponível,
+   reduz tudo proporcionalmente para aparecer por inteiro.
+   (editor e relatório continuam rolando normalmente)
+   --------------------------------------------------------- */
 function ajustarEscala(){
   const fit = document.getElementById('fit');
   if(!fit) return;
@@ -368,7 +373,7 @@ function linkDoJogador(){
 function telaLobby(){
   const lista = Object.entries(H.jogadores).map(([id,j])=>`
     <div class="player-chip">
-      <img src="${skinDe(j)}" alt="${esc(j.apelido)}" onerror="this.onerror=null;this.src=avatarFallback('${jsStr(j.apelido||'')}')">
+      <img src="${retratoDe(j.personagem)}" alt="${esc(j.apelido)}" onerror="this.onerror=null;this.src=avatarFallback('${jsStr(j.personagem||'')}')">
       <span class="player-name">${esc(j.apelido)}</span>
     </div>`).join('');
   const n = Object.keys(H.jogadores).length;
@@ -430,7 +435,7 @@ function iniciarJogo(){
 async function anunciar(i){
   pararTudo();
   H.indice = i; H.fase = 'anuncio'; H.travaRevelacao = false;
-  H._rankAnimKey = null;
+  H._rankAnimKey = null; /* permite animar o ranking desta pergunta */
   contagem = 3;
   const p = H.quiz.perguntas[i];
   await escrever({
@@ -479,6 +484,7 @@ async function perguntar(i, retomando){
   }, 200);
 }
 
+/* revela automaticamente quando todos já responderam */
 function talvezRevelarCedo(){
   if(H.fase !== 'pergunta') return;
   const nJog = Object.keys(H.jogadores).length;
@@ -499,11 +505,13 @@ async function revelar(){
     jogadores = (await gameRef(H.pin,'jogadores').get()).val() || {};
   }catch(e){ jogadores = H.jogadores; }
 
+  /* ---- distribuição por opção ---- */
   const distribuicao = [0,0,0,0];
   Object.values(respostas).forEach(r => {
     if(typeof r.opcao === 'number' && r.opcao >= 0 && r.opcao <= 3) distribuicao[r.opcao]++;
   });
 
+  /* ---- ordem dos acertos pelo timestamp do servidor ---- */
   const acertosOrdenados = Object.entries(respostas)
     .filter(([id,r]) => r.opcao === p.correta)
     .sort((a,b) => (a[1].timestamp||0) - (b[1].timestamp||0));
@@ -516,6 +524,7 @@ async function revelar(){
     else                            ganhoPorId[id] = 1000;
   });
 
+  /* ---- atualização de todos os jogadores ---- */
   const updates = {};
   const detalhes = {};
   Object.entries(jogadores).forEach(([id,j]) => {
@@ -539,7 +548,7 @@ async function revelar(){
     updates[`jogadores/${id}/ultimoAcerto`] = acertou;
 
     detalhes[id] = {
-      apelido:j.apelido, personagem:j.personagem, skin:j.skin,
+      apelido:j.apelido, personagem:j.personagem,
       opcao: respondeu ? r.opcao : null,
       acertou, pontos: ganho,
       ms: (respondeu && r.timestamp) ? Math.max(0, r.timestamp - H.inicioEm) : null
@@ -583,14 +592,13 @@ async function finalizar(){
 }
 
 /* =========================================================
-   TELA — JOGO (anúncio · pergunta · revelação · ranking · ovada)
+   TELA — JOGO (anúncio · pergunta · revelação · ranking)
    ========================================================= */
 function telaJogo(){
   if(H.fase === 'anuncio')   return blocoAnuncio();
   if(H.fase === 'pergunta')  return blocoPergunta();
   if(H.fase === 'revelacao') return blocoRevelacao();
   if(H.fase === 'ranking')   return blocoRanking();
-  if(H.fase === 'ovada')     return blocoOvadaHost();
   return blocoAnuncio();
 }
 
@@ -661,9 +669,12 @@ function listaOrdenada(){
     .sort((a,b) => (b.pontos||0) - (a.pontos||0) || String(a.apelido).localeCompare(String(b.apelido)));
 }
 
+/* anima a fileira de quem ultrapassou outro participante no ranking,
+   comparando a ordem atual com a do ranking anterior (técnica FLIP).
+   Roda no máximo uma vez por pergunta para não misturar imagens em re-renders. */
 function animarRanking(){
   const chave = H.indice + ':' + (H.fase || '');
-  if(H._rankAnimKey === chave) return;
+  if(H._rankAnimKey === chave) return; /* já animou este ranking */
   const reduzido = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const rows = Array.prototype.slice.call(document.querySelectorAll('.rank-row[data-id]'));
   if(!rows.length) return;
@@ -682,20 +693,32 @@ function animarRanking(){
       const oldIndex = prev.indexOf(id);
       if(oldIndex === -1 || oldIndex === newIndex) return;
       const delta = (oldIndex - newIndex) * rowH;
+      /* trava o conteúdo da linha (imagem+nome) ao personagem certo durante o slide */
       row.style.willChange = 'transform';
       row.style.transition = 'none';
       row.style.transform = `translateY(${delta}px)`;
       row.style.zIndex = oldIndex > newIndex ? '3' : '1';
-      void row.offsetHeight;
+      void row.offsetHeight; /* reflow */
       requestAnimationFrame(()=>{
         row.style.transition = 'transform .6s cubic-bezier(.34,1.56,.64,1)';
         row.style.transform = 'translateY(0)';
-        setTimeout(()=>{
-          row.style.willChange = '';
-          row.style.zIndex = '';
-          row.style.transition = '';
-          row.style.transform = '';
-        }, 700);
+        if(oldIndex > newIndex){
+          row.classList.add('rank-move-up');
+          setTimeout(()=>{
+            row.classList.remove('rank-move-up');
+            row.style.willChange = '';
+            row.style.zIndex = '';
+            row.style.transition = '';
+            row.style.transform = '';
+          }, 700);
+        } else {
+          setTimeout(()=>{
+            row.style.willChange = '';
+            row.style.zIndex = '';
+            row.style.transition = '';
+            row.style.transform = '';
+          }, 700);
+        }
       });
     });
   }
@@ -709,10 +732,11 @@ function blocoRanking(){
   const linhas = top.map((j,i)=>{
     const g = Number(j.ultimoGanho)||0;
     const cls = g > 0 ? '' : (g < 0 ? 'neg' : 'zero');
+    /* data-personagem ajuda a depurar e garante que img acompanha o id da linha */
     return `
       <div class="rank-row" data-id="${esc(j.id)}" data-personagem="${esc(j.personagem||'')}">
         <span class="chip-num">${i+1}</span>
-        <img src="${skinDe(j)}" alt="${esc(j.apelido)}" decoding="sync" onerror="this.onerror=null;this.src=avatarFallback('${jsStr(j.apelido||'')}')">
+        <img src="${galoDe(j.personagem)}" alt="${esc(j.apelido)}" decoding="sync" onerror="this.onerror=null;this.src=avatarFallback('${jsStr(j.personagem||'')}')">
         <span class="rank-name">${esc(j.apelido)}</span>
         <span class="rank-gain ${cls}">${g>0?'+':''}${formatScore(g)}</span>
         <span class="rank-pts">${formatScore(j.pontos||0)}</span>
@@ -722,10 +746,10 @@ function blocoRanking(){
   const fogo = lista.slice().sort((a,b)=>(b.sequencia||0)-(a.sequencia||0))[0];
   const destaque = (fogo && (fogo.sequencia||0) >= 2) ? `
     <div class="streak-card">
-      <img src="${skinDe(fogo)}" alt="" onerror="this.style.display='none'">
+      <img src="${galoDe(fogo.personagem)}" alt="" onerror="this.style.display='none'">
       <div class="streak-text">
         <strong>🔥 ${fogo.sequencia} acertos seguidos</strong>
-        ${esc(fogo.apelido)} está embalado!
+        ${esc(fogo.apelido)} · ${esc(fogo.personagem)} está embalado!
       </div>
     </div>` : `
     <div class="streak-card">
@@ -745,43 +769,13 @@ function blocoRanking(){
 }
 
 /* =========================================================
-   TELA — OVADA (HOST)
-   ========================================================= */
-function blocoOvadaHost(){
-  const o = H.ovadaAtiva || {};
-  const ativador = H.jogadores[o.atribuidor] || { apelido:'Player', skin:null };
-  const vitima = H.jogadores[o.vitima] || { apelido:'Alvo', skin:null, pontos:300 };
-
-  return `
-    <div class="question-card ovada-host-stage">
-      <p class="instruction">🥚 hora da ovada!</p>
-      <div class="ovada-arena">
-        <div class="ovada-lado-esq" id="circuloEsq">
-          <img src="${skinDe(ativador)}" alt="" onerror="this.src=avatarFallback('${jsStr(ativador.apelido)}')">
-          <span class="ovada-nick">${esc(ativador.apelido)}</span>
-        </div>
-        <div class="ovada-centro">
-          <div class="ovo-animado" id="ovoVoador">🥚</div>
-        </div>
-        <div class="ovada-lado-dir" id="circuloDir">
-          <img src="${skinDe(vitima)}" alt="" onerror="this.src=avatarFallback('${jsStr(vitima.apelido)}')">
-          <span class="ovada-nick">${esc(vitima.apelido)}</span>
-          <span class="ovada-perdeu">−300 pts</span>
-        </div>
-      </div>
-      <p class="home-sub" style="margin-top:16px">${esc(ativador.apelido)} mandou uma ovada em ${esc(vitima.apelido)}!</p>
-    </div>
-    <div class="footer-space"></div>`;
-}
-
-/* =========================================================
    TELA — PÓDIO
    ========================================================= */
 function telaPodio(){
   const lista = listaOrdenada();
   const col = (j,pos) => j ? `
     <div class="podium-col podium-${pos}">
-      <img src="${skinDe(j)}" alt="" onerror="this.style.display='none'">
+      <img src="${galoDe(j.personagem)}" alt="" onerror="this.style.display='none'">
       <span class="podium-name">${esc(j.apelido)}</span>
       <span class="podium-pts">${formatScore(j.pontos||0)} pts</span>
       <div class="podium-block"><span class="podium-place">${pos}º</span></div>
@@ -900,10 +894,12 @@ function baixarExcel(){
   const lista = listaOrdenada();
   const wb = XLSX.utils.book_new();
 
+  /* aba 1 — ranking final */
   const a1 = [['posição','apelido','personagem','pontos','acertos','% de acerto','maior sequência']];
   lista.forEach((j,i)=> a1.push([i+1, j.apelido, j.personagem, j.pontos||0, j.acertos||0, pctAcerto(j)+'%', j.maiorSequencia||0]));
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(a1), 'ranking final');
 
+  /* aba 2 — respostas por participante x pergunta */
   const a2 = [['apelido','pergunta','enunciado','opção escolhida','correta?','tempo de resposta (s)','pontos']];
   lista.forEach(j=>{
     H.quiz.perguntas.forEach((p,i)=>{
@@ -920,6 +916,7 @@ function baixarExcel(){
   });
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(a2), 'respostas');
 
+  /* aba 3 — por pergunta */
   const nJog = Object.keys(H.jogadores).length || 1;
   const a3 = [['pergunta','enunciado','modo','tempo (s)','resposta certa','triângulo','losango','círculo','quadrado','sem resposta','% de acerto']];
   H.quiz.perguntas.forEach((p,i)=>{
@@ -966,42 +963,13 @@ function ouvirJogo(){
     const r = s.val() || {};
     Object.keys(r).forEach(k => { H.resultados[Number(k)] = r[k]; });
   });
-
-  on('ovadas','child_added', s => {
-    const ov = s.val();
-    if(!ov) return;
-    H.ovadaAtiva = ov;
-    H.faseOld = H.fase;
-    H.fase = 'ovada';
-    render();
-    playSound('alert');
-
-    // Animação de 4 segundos do ovo cruzando a tela
-    setTimeout(() => {
-      const ovoEl = document.getElementById('ovoVoador');
-      if(ovoEl){
-        ovoEl.style.transition = 'transform 3.5s ease-in-out';
-        ovoEl.style.transform = 'translateX(280px) scale(4.5)';
-      }
-    }, 100);
-
-    setTimeout(async () => {
-      // Deduz os pontos do player escolhido no Firebase
-      const vitimaId = ov.vitima;
-      if(vitimaId && H.jogadores[vitimaId]){
-        const pAtual = H.jogadores[vitimaId].pontos || 0;
-        const novoP = Math.max(0, pAtual - 300);
-        try { await gameRef(H.pin, `jogadores/${vitimaId}/pontos`).set(novoP); } catch(e){}
-      }
-      H.fase = H.faseOld || 'ranking';
-      H.ovadaAtiva = null;
-      render();
-    }, 4000);
-  });
 }
 
 /* =========================================================
-   REAÇÕES COM EMOJI
+   REAÇÕES COM EMOJI (só durante o ranking parcial)
+   Nas laterais da tela, embaixo: o personagem em cima do galo
+   e os emojis pipocando para cima por 3 segundos.
+   Fica fora do #page e sem pointer-events: não cobre o ranking.
    ========================================================= */
 let reacoesRef = null, reacoesCb = null, rxLado = 0;
 
@@ -1028,7 +996,7 @@ function ouvirReacoes(indice){
     if(!r || H.fase !== 'ranking' || H.indice !== indice) return;
     if(REACOES.indexOf(r.emoji) === -1) return;
     const ts = Number(r.timestamp) || 0;
-    if(ts && serverNow() - ts > 8000) return;
+    if(ts && serverNow() - ts > 8000) return;   /* ignora reações antigas ao reconectar */
     dispararReacao(s.key, r.emoji);
   };
   ref.on('child_added', cb);
@@ -1043,10 +1011,11 @@ function dispararReacao(id, emoji){
   const o = garantirOverlay();
   const lado = o.querySelector((rxLado++ % 2) ? '.rx-dir' : '.rx-esq');
   const j = H.jogadores[id] || {};
+  const pers = j.personagem || '';
   const ator = document.createElement('div');
   ator.className = 'rx-ator';
   ator.style.left = (8 + Math.random()*100) + 'px';
-  ator.innerHTML = `<img src="${skinDe(j)}" alt="" onerror="this.onerror=null;this.src=avatarFallback('${jsStr(j.apelido||'')}''})"><span class="rx-nome">${esc(j.apelido||'')}</span>`;
+  ator.innerHTML = `<img src="${galoDe(pers)}" alt="" onerror="this.onerror=null;this.src=avatarFallback('${jsStr(pers)}')"><span class="rx-nome">${esc(j.apelido||'')}</span>`;
   lado.appendChild(ator);
   const t0 = performance.now();
   const spawn = setInterval(()=>{
@@ -1093,6 +1062,7 @@ async function retomarJogo(){
     else {
       H.tela = 'jogo';
       if(H.fase === 'pergunta'){
+        /* volta o cronômetro de onde parou */
         if(serverNow() >= H.fimEm){ render(); revelar(); return; }
         perguntar(H.indice, true); return;
       }
@@ -1111,6 +1081,7 @@ async function retomarJogo(){
 (function boot(){
   const salvo = loadState(HOST_KEY);
   if(salvo && salvo.quiz && !salvo.pin){
+    /* rascunho do editor guardado */
     H.quiz = { titulo:salvo.quiz.titulo||'', descricao:salvo.quiz.descricao||'', perguntas:(salvo.quiz.perguntas||[]).map(normPergunta) };
     H.mostrarNoAparelho = !!salvo.mostrarNoAparelho;
     if(H.quiz.perguntas.length && salvo.tela === 'editor'){ H.tela = 'editor'; H.resumed = true; }
