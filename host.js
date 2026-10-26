@@ -1050,9 +1050,9 @@ function dispararReacao(id, emoji){
    2. o aparelho do atirador lista os outros participantes
    3. a escolha chega em ovadas/<pergunta>/<atirador> = { alvo }
    4. na tela do host o ovo rola da esquerda até cobrir o alvo (~4s)
-   5. o alvo perde 300 pontos e o ranking anima as trocas de lugar
+   5. o alvo perde 450 pontos e o ranking anima as trocas de lugar
    ========================================================= */
-const OVADA_PERDA = 300;
+const OVADA_PERDA = 450;
 const OVADA_ESPERA_MS = 20000;
 const dormir = ms => new Promise(r => setTimeout(r, ms));
 let ovadaSpawn = null;
@@ -1146,11 +1146,12 @@ function rolarOvo(ov){
     const bx = b.left + b.width/2, by = b.top + b.height/2;
     const fim = (b.width * 1.25) / 84;   /* 84 = parte mais larga do ovo no svg */
     ovo.style.display = 'block';
+    playSound('ovada');   /* o ovo surge */
     const anim = ovo.animate([
       { transform:`translate(${ax-50}px,${ay-65}px) scale(.3) rotate(0deg)` },
       { transform:`translate(${bx-50}px,${by-65}px) scale(${fim}) rotate(1080deg)` }
     ], { duration:4000, easing:'ease-in', fill:'forwards' });
-    anim.onfinish = () => res();
+    anim.onfinish = () => { playSound('plop'); res(); };   /* ovo em cima do alvo */
     anim.oncancel = () => res();
   });
 }
@@ -1175,12 +1176,21 @@ async function executarOvada(id, indice, tok){
     return;
   }
 
-  /* o círculo do alvo surge à direita */
+  /* suspense: o círculo da direita surge escondido enquanto toca a 5ª de Beethoven */
   const dir = ov.querySelector('.ov-dir');
-  dir.innerHTML = circuloOvada(alvo);
+  dir.innerHTML = '<div class="ov-misterio">?</div>';
   dir.classList.remove('ov-oculto');
+  dir.classList.add('ov-suspense');
+  ov.querySelector('.ov-sub').textContent = `${lanc.apelido} escolheu o alvo… quem será?`;
+  await playSoundAndWait('suspense', 9000);
+  if(tok !== H.ovadaTok) return;
+
+  /* só depois do som: revela quem foi escolhido */
+  dir.classList.remove('ov-suspense');
+  dir.innerHTML = circuloOvada(alvo);
+  dir.classList.add('ov-revela');
   ov.querySelector('.ov-sub').textContent = `${lanc.apelido} escolheu ${alvo.apelido}!`;
-  await dormir(1100);
+  await dormir(1200);
   if(tok !== H.ovadaTok) return;
 
   await rolarOvo(ov);
@@ -1188,15 +1198,28 @@ async function executarOvada(id, indice, tok){
   await dormir(250);
   if(tok !== H.ovadaTok) return;
 
-  /* aplica a perda de pontos */
+  /* aplica a perda de pontos: transação no servidor (usa o valor real, não o da tela) */
   const antes = Math.max(0, Number(alvo.pontos) || 0);
-  const perda = Math.min(OVADA_PERDA, antes);
-  const upd = {};
-  upd[`jogadores/${alvoId}/pontos`] = Math.max(0, antes - OVADA_PERDA);
-  upd[`jogadores/${alvoId}/ovadasRecebidas`] = (alvo.ovadasRecebidas || 0) + 1;
-  upd[`jogadores/${id}/ovadaDisponivel`] = false;
-  upd[`jogadores/${id}/ovadasFeitas`] = (lanc.ovadasFeitas || 0) + 1;
-  try{ await gameRef(H.pin).update(upd); }catch(e){}
+  let depois = Math.max(0, antes - OVADA_PERDA);
+  let falhou = false;
+  try{
+    const r = await gameRef(H.pin, `jogadores/${alvoId}/pontos`)
+      .transaction(v => Math.max(0, (Number(v) || 0) - OVADA_PERDA));
+    const v = r && r.snapshot ? r.snapshot.val() : null;
+    if(typeof v === 'number') depois = v;
+    else falhou = true;
+  }catch(e){ falhou = true; console.error('ovada: não consegui descontar os pontos', e); }
+  const perda = falhou ? 0 : Math.max(0, antes - depois);
+  /* reflete já na tela do host, sem esperar o retorno do banco */
+  if(!falhou && H.jogadores[alvoId]) H.jogadores[alvoId].pontos = depois;
+  if(H.jogadores[id]) H.jogadores[id].ovadaDisponivel = false;
+  try{
+    await gameRef(H.pin).update({
+      [`jogadores/${alvoId}/ovadasRecebidas`]: (alvo.ovadasRecebidas || 0) + 1,
+      [`jogadores/${id}/ovadaDisponivel`]: false,
+      [`jogadores/${id}/ovadasFeitas`]: (lanc.ovadasFeitas || 0) + 1
+    });
+  }catch(e){ console.error('ovada: não consegui registrar a ovada', e); }
   if(tok !== H.ovadaTok) return;
 
   /* resultado: o alvo e quanto perdeu */
@@ -1204,7 +1227,7 @@ async function executarOvada(id, indice, tok){
   ov.querySelector('.ov-resultado').innerHTML = `
     <div class="ov-circulo ov-grande">${circuloOvada(alvo)}<span class="ov-respingo">🍳</span></div>
     <p class="ov-nome">${esc(alvo.apelido)} levou uma ovada!</p>
-    <p class="ov-perda">${perda > 0 ? '−' + formatScore(perda) + ' pontos' : 'sem pontos para perder'}</p>`;
+    <p class="ov-perda">${falhou ? 'não foi possível descontar os pontos' : (perda > 0 ? '−' + formatScore(perda) + ' pontos' : 'sem pontos para perder')}</p>`;
   ov.classList.add('resultado');
   await dormir(3000);
   if(tok !== H.ovadaTok) return;
@@ -1219,6 +1242,8 @@ async function executarOvada(id, indice, tok){
 
 async function processarOvadas(indice){
   const tok = H.ovadaTok;
+  /* a ordem é a do ranking ANTES das ovadas (1º colocado atira primeiro) e fica
+     congelada: os pontos perdidos numa ovada não mudam a vez dos demais */
   const ids = listaOrdenada().filter(j => j.ovadaDisponivel).map(j => j.id);
   for(const id of ids){
     if(tok !== H.ovadaTok || H.fase !== 'ranking' || H.indice !== indice) return;
