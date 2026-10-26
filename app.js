@@ -41,7 +41,10 @@ const SOUND_FILES = {
   level:'sounds/level.mp3',
   levelfail:'sounds/levelfail.mp3',
   losing:'sounds/losing.mp3',
-  win:'sounds/win01.mp3'
+  win:'sounds/win01.mp3',
+  ovada:'sounds/ovada.mp3',                                          // ovo surgindo
+  plop:'sounds/plop.mp3',                                            // ovo caindo sobre o alvo
+  suspense:'sounds/beethovens-5th-symphony-text-email-tone-no.mp3'   // alvo escolhido (suspense)
 };
 const SOUND_VOLUMES = { question:0.5 };  // mais baixo que os demais efeitos (0.85)
 
@@ -66,6 +69,24 @@ function playSound(name){
     a.volume = SOUND_VOLUMES[name] !== undefined ? SOUND_VOLUMES[name] : 0.85;
     a.play().catch(()=>{});
   }catch(e){}
+}
+
+/* toca o som e só resolve quando ele termina (ou após o tempo máximo).
+   Mudo ou som bloqueado pelo navegador: espera um suspense curto de 2,5s. */
+function playSoundAndWait(name, maxMs){
+  return new Promise(res => {
+    if(som.muted){ setTimeout(res, 2500); return; }
+    let feito = false;
+    const fim = () => { if(feito) return; feito = true; clearTimeout(t); res(); };
+    const t = setTimeout(fim, maxMs || 8000);
+    try{
+      const src = SOUND_FILES[name]; if(!src){ fim(); return; }
+      const a = new Audio(src);
+      a.volume = SOUND_VOLUMES[name] !== undefined ? SOUND_VOLUMES[name] : 0.85;
+      a.onended = fim; a.onerror = () => setTimeout(fim, 2500);
+      a.play().catch(() => setTimeout(fim, 2500));
+    }catch(e){ fim(); }
+  });
 }
 
 /* ---------------------------------------------------------
