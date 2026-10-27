@@ -70,7 +70,8 @@ function render(){
   document.documentElement.style.overflow = rolavel ? '' : 'hidden';
   const noRanking = (H.tela === 'jogo' && H.fase === 'ranking');
   document.body.classList.toggle('fase-ranking', noRanking);
-  if(!noRanking) limparReacoes();
+  document.body.classList.toggle('ovada-ativa', !!H.ovadaAtiva);
+  if(!noRanking || H.ovadaAtiva) limparReacoes();
   let html;
   switch(H.tela){
     case 'editor':    html = telaEditor(); break;
@@ -578,7 +579,7 @@ async function mostrarRanking(){
   H.fase = 'ranking';
   H.ovadaAtiva = haOvadasPendentes();
   ouvirReacoes(H.indice);
-  await escrever({ fase:'ranking', indice:H.indice, total:H.quiz.perguntas.length });
+  await escrever({ fase:'ranking', indice:H.indice, total:H.quiz.perguntas.length, ovadaAtiva:H.ovadaAtiva });
   playSound('level');
   render();
   if(H.ovadaAtiva){
@@ -1004,7 +1005,7 @@ function ouvirReacoes(indice){
   const ref = gameRef(H.pin, 'reacoes/' + indice);
   const cb = s => {
     const r = s.val();
-    if(!r || H.fase !== 'ranking' || H.indice !== indice) return;
+    if(!r || H.fase !== 'ranking' || H.indice !== indice || H.ovadaAtiva) return;   /* sem reações durante as ovadas */
     if(REACOES.indexOf(r.emoji) === -1) return;
     const ts = Number(r.timestamp) || 0;
     if(ts && serverNow() - ts > 8000) return;   /* ignora reações antigas ao reconectar */
@@ -1161,7 +1162,7 @@ async function executarOvada(id, indice, tok){
   if(!lanc) return;
   const ov = abrirOverlayOvada(lanc);
   playSound('modo');
-  await escrever({ fase:'ranking', indice, total:H.quiz.perguntas.length, ovadaPor:id });
+  await escrever({ fase:'ranking', indice, total:H.quiz.perguntas.length, ovadaPor:id, ovadaAtiva:true });
 
   const alvoId = await esperarEscolha(id, indice, OVADA_ESPERA_MS);
   if(tok !== H.ovadaTok) return;
@@ -1250,10 +1251,12 @@ async function processarOvadas(indice){
     if(Object.keys(H.jogadores).length < 2) break;
     await executarOvada(id, indice, tok);
     if(tok !== H.ovadaTok) return;
-    await escrever({ fase:'ranking', indice, total:H.quiz.perguntas.length });
+    await escrever({ fase:'ranking', indice, total:H.quiz.perguntas.length, ovadaAtiva:true });
   }
   if(tok !== H.ovadaTok) return;
   H.ovadaAtiva = false;
+  /* ovadas terminadas: libera as reações de novo nos celulares */
+  await escrever({ fase:'ranking', indice, total:H.quiz.perguntas.length });
   render();
 }
 
