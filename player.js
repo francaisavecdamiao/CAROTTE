@@ -25,6 +25,7 @@ const P = {
   skin:0,             // 0 = original · 1 = NOME02 · 2 = NOME03
   ovadaPor:null,      // id de quem o host chamou para escolher o alvo da ovada
   ovadaEnviada:false,
+  ovadaAtiva:false,   // o host está rodando ovadas: reações bloqueadas
   lista:[]            // participantes da sala (id, apelido, personagem, skin)
 };
 
@@ -393,17 +394,18 @@ function telaRevelacao(){
 
 function blocoReacoes(){
   const enviado = P.reacoes[P.indice] || null;
+  const trava = P.ovadaAtiva;   /* durante as ovadas ninguém reage */
   const botoes = REACOES.map((e,k)=>`
-    <button class="emoji-btn ${enviado ? (enviado===e ? 'on' : 'dim') : ''}" ${enviado ? 'disabled' : ''}
+    <button class="emoji-btn ${enviado ? (enviado===e ? 'on' : 'dim') : (trava ? 'dim' : '')}" ${(enviado || trava) ? 'disabled' : ''}
             onclick="reagir(${k})" aria-label="reagir com ${e}">${e}</button>`).join('');
   return `
-      <p class="instruction" style="margin:6px 0 0">${enviado ? 'reação enviada!' : 'mande uma reação para a tela'}</p>
+      <p class="instruction" style="margin:6px 0 0">${enviado ? 'reação enviada!' : (trava ? '🥚 reações liberadas depois das ovadas' : 'mande uma reação para a tela')}</p>
       <div class="emoji-grid">${botoes}</div>`;
 }
 
 async function reagir(k){
   const emoji = REACOES[k];
-  if(!emoji || P.fase !== 'ranking' || P.reacoes[P.indice] || !P.id) return;
+  if(!emoji || P.fase !== 'ranking' || P.ovadaAtiva || P.reacoes[P.indice] || !P.id) return;
   playSound('click');
   const idx = P.indice;
   P.reacoes[idx] = emoji;
@@ -568,6 +570,7 @@ function ouvirJogo(){
     P.modo = MODOS[e.modo] ? e.modo : 'unica';
     P.pergunta = e.pergunta || null;   // enunciado + opções (sem o gabarito)
     P.ovadaPor = e.ovadaPor || null;
+    P.ovadaAtiva = !!e.ovadaAtiva;
     if(P.ovadaPor !== P.id) P.ovadaEnviada = false;
 
     if(P.indice !== indiceAnterior){ P.minhaResposta = null; }
