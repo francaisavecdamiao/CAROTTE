@@ -719,3 +719,6 @@ body.host.fase-ranking #reacoes-host{ display:block; }
   from{ transform:scale(.6); filter:brightness(2.2); }
   to{ transform:scale(1); filter:none; }
 }
+
+/* sem reações na tela do host enquanto as ovadas rolam */
+body.ovada-ativa #reacoes-host{ display:none !important; }
